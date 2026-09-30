@@ -1,73 +1,66 @@
 # Waffenpack für Eaglercraft 1.12
 
 Pistole, Bazooka, Schwert mit eigenem Design und sehr starke Items.
-Besteht aus einem Ressourcenpaket (Aussehen) und Befehlen (Items und Funktion).
+Besteht aus zwei Dateien: einem Ressourcenpaket (Aussehen) und einer fertigen Welt (Items und Waffenfunktion).
 
 ## Machbarkeit
 
-- **Forge-Mods:** gehen nicht. Eaglercraft läuft als nach JavaScript übersetztes Programm im Browser und kann keine Java-Mods nachladen.
-- **Eigener Client-Build:** wäre möglich, ist aber ein großes Projekt und hier nicht umgesetzt.
-- **Gewählter Weg: Ressourcenpaket + Befehle.** Das nutzt nur Funktionen, die Minecraft 1.12 selbst mitbringt.
+- **Forge-Mods:** gehen nicht. Eaglercraft läuft als nach JavaScript/WebAssembly übersetztes Programm im Browser und kann keine Java-Mods nachladen.
+- **Client-Datei verändern:** nicht nötig. Ressourcenpaket und Welt werden einmal in Eaglercraft importiert und bleiben im Browser gespeichert.
+- **Gewählter Weg: Ressourcenpaket + Welt mit eingebauten Befehlsblöcken.** Das nutzt nur Funktionen, die Minecraft 1.12 selbst mitbringt.
 
-Wichtig:
+Getestet:
 
-- Eine Minecraft-Version „1.12.4“ gibt es nicht (1.12 endet bei 1.12.2). Alles ist im Format von Minecraft 1.12.2 gebaut.
-- Getestet wurde auf einem originalen Minecraft-1.12.2-Server mit einem Testspieler: alle Items, Pistole, Bazooka, Schwert und der Befehlsblock-Installer funktionieren dort.
-- **In Eaglercraft selbst konnte ich nicht testen**, und auch das Ressourcenpaket (Aussehen) ist nicht im Spiel geprüft. Wenn der Eaglercraft-Client sich wie Minecraft 1.12.2 verhält, sollte alles gleich funktionieren.
+- In **Eaglercraft 1.12.2 (u3), WASM-Offline-Version**: Ressourcenpaket importiert und aktiv, Welt importiert, alle Items automatisch im Inventar, eigenes Aussehen der Waffen, Bazooka explodiert, Pistole tötet einen Zombie mit 1000 Lebenspunkten mit einem Schuss.
+- Auf einem originalen Minecraft-1.12.2-Server zusätzlich: alle Items mit den richtigen Werten, Schwert tötet denselben Zombie mit einem Schlag, Items erneut holen.
+- Eine Minecraft-Version „1.12.4“ gibt es nicht; alles ist im Format von Minecraft 1.12.2 gebaut.
 
 ## Dateien
 
 | Datei | Zweck |
 |---|---|
 | `Waffenpack-Ressourcenpaket.zip` | Ressourcenpaket: Texturen und Modelle für Pistole, Bazooka, Schwert |
-| `befehle/installer-befehlsblock.txt` | Ein Befehl für einen Befehlsblock: gibt alle Items und aktiviert Pistole/Bazooka (Weg A) |
-| `welt/data/functions/waffenpack/` | Dieselbe Funktion als Weltdateien, Start mit `/function waffenpack:start` (Weg B) |
-| `befehle/einzelbefehle.txt` | Jedes Item als einzelner Chat-Befehl (Weg C) |
-| `ressourcenpaket/` | Inhalt der ZIP-Datei als Ordner |
-| `build.py` | Erzeugt alle Dateien neu (`python3 build.py`). Alle Werte stehen oben in der Datei. |
+| `Waffenpack-Welt.zip` | Fertige Welt: Items beim ersten Betreten, Steuerung für Pistole und Bazooka |
+| `befehle/einzelbefehle.txt` | Jedes Item als einzelner Chat-Befehl, für andere Welten (Notlösung) |
+| `ressourcenpaket/` | Inhalt der Ressourcenpaket-ZIP als Ordner |
+| `build.py` | Erzeugt Ressourcenpaket und Befehle neu. Alle Werte stehen oben in der Datei. |
+| `welt_bauen.py` | Baut `Waffenpack-Welt.zip` neu (braucht den originalen 1.12.2-Server). |
 
-## Anleitung
+## Anleitung für Eaglercraft 1.12.2
 
-### 1. Ressourcenpaket aktivieren
+### 1. Ressourcenpaket laden (einmalig)
 
-1. In Eaglercraft: **Optionen → Ressourcenpakete**.
-2. `Waffenpack-Ressourcenpaket.zip` hinzufügen und aktivieren. (Der genaue Name des Buttons kann je nach Eaglercraft-Version abweichen.)
+1. Eaglercraft öffnen.
+2. **Options... → Resource Packs...**
+3. **Open Resource Pack Folder** klicken und `Waffenpack-Ressourcenpaket.zip` auswählen.
+4. Links erscheint „Waffenpack-Ressourcenpaket“. Darauf klicken und **Select this resource pack** wählen.
+5. **Done** klicken.
 
-Ohne Ressourcenpaket funktionieren die Waffen trotzdem, sehen aber aus wie Bogen und Diamantschwert.
+### 2. Welt importieren (einmalig)
 
-### 2. Welt vorbereiten
+1. **Singleplayer → Create New World → Import Vanilla World**.
+2. `Waffenpack-Welt.zip` auswählen.
+3. **Keep spawn chunks loaded** auf **Yes** stellen (wichtig, siehe unten).
+4. **Continue** klicken.
 
-1. Neue Einzelspielerwelt erstellen, dabei **Cheats erlauben: AN**.
-2. In der Welt `/gamemode 1` eingeben (Kreativmodus, nötig zum Bearbeiten von Befehlsblöcken).
+### 3. Spielen
 
-### 3. Items bekommen – Weg A (empfohlen): Befehlsblock
+1. Die Welt „Waffenpack-Welt“ auswählen und **Play Selected World** klicken.
+2. Alle Items liegen sofort im Inventar.
 
-1. Am Spawnpunkt (dort, wo man zuerst erscheint) auf freier, ebener Fläche stehen.
-2. `/give @p command_block` eingeben und den Befehlsblock auf den Boden setzen.
-3. Rechtsklick auf den Befehlsblock. Den kompletten Inhalt von `befehle/installer-befehlsblock.txt` einfügen (Strg+V) und **Fertig** klicken.
-4. Einen Knopf an den Befehlsblock setzen und drücken.
+Die Welt startet im Überlebensmodus, Cheats sind an. Kreativmodus: `/gamemode 1`, zurück: `/gamemode 0`.
 
-Danach sind alle Items im Inventar. Rechts daneben (Richtung Osten) entsteht eine Reihe aus 12 Befehlsblöcken; sie steuert Pistole und Bazooka und darf nicht abgebaut werden. Erneutes Drücken des Knopfes gibt alle Items noch einmal.
+**Items noch einmal bekommen:** im Chat eingeben:
 
-Für den Überlebensmodus danach `/gamemode 0` eingeben.
+```
+/scoreboard players tag @p remove wp_hat
+```
 
 Hinweise:
-- Der Befehl ist zu lang für den Chat (dort sind höchstens 256 Zeichen erlaubt), deshalb der Befehlsblock.
-- Befehlsblöcke laufen nur, solange ihr Gebiet geladen ist. Der Bereich um den Spawnpunkt bleibt in Minecraft 1.12 immer geladen, deshalb dort bauen.
-- Falls der Client kein Einfügen mit Strg+V unterstützt, geht dieser Weg nicht. Dann Weg C.
-
-### 3. Items bekommen – Weg B: Funktion (nur mit Weltimport)
-
-Nur möglich, wenn dein Eaglercraft-Client Welten als ZIP exportieren und wieder importieren kann:
-
-1. Welt exportieren und entpacken.
-2. Den Ordner `welt/data/functions` in den Ordner `data` der Welt kopieren (Ergebnis: `<Welt>/data/functions/waffenpack/start.mcfunction`).
-3. Welt wieder packen und importieren.
-4. In der Welt eingeben: `/function waffenpack:start`
-
-### 3. Items bekommen – Weg C: Einzelbefehle
-
-Jede Zeile aus `befehle/einzelbefehle.txt` in den Chat eingeben. Alle Items kommen so ins Inventar, **aber Pistole und Bazooka verhalten sich dann wie normale Bögen** (kein erhöhter Schaden, keine Explosion).
+- **Unter dem Spawnpunkt** (Höhe 10) liegt eine Reihe aus 27 Befehlsblöcken, eingeschlossen in Stein. Sie steuert alles; dort nicht graben.
+- **Keep spawn chunks loaded: Yes** sorgt dafür, dass diese Befehlsblöcke überall in der Oberwelt laufen. Mit „No“ funktionieren Pistole und Bazooka nur in der Nähe des Spawnpunkts.
+- **Bazooka:** Die Explosion verletzt auch dich. Nicht auf den Boden direkt vor dir schießen.
+- Die Items gibt es nur in dieser Welt. Für eine andere Welt: die Befehle aus `befehle/einzelbefehle.txt` einzeln in den Chat eingeben (dann sind Pistole und Bazooka nur normale Bögen).
 
 ## Inhalt
 
@@ -88,7 +81,7 @@ Pistole und Bazooka werden wie ein Bogen benutzt: rechte Maustaste halten, losla
 
 ## Getroffene Entscheidungen zu den offenen Punkten
 
-Du wolltest keine Rückfragen. Deshalb habe ich so entschieden; alles lässt sich in `build.py` ändern:
+Du wolltest keine Rückfragen. Deshalb habe ich so entschieden; alles lässt sich in `build.py` ändern (danach `python3 build.py` und `python3 welt_bauen.py <server.jar>` ausführen):
 
 1. **Anzahl der Items:** alle sechs genannten Items sind enthalten.
 2. **2 Milliarden Schaden:** für alle drei Waffen, so hoch wie technisch möglich (siehe Grenzen).
@@ -98,7 +91,7 @@ Du wolltest keine Rückfragen. Deshalb habe ich so entschieden; alles lässt sic
 6. **Federfall:** auf den Stiefeln.
 7. **„Anstarr“ Stufe 20:** Das Wort passt zu keiner Verzauberung. Ich habe **Schärfe 20** auf einem normalen Diamantschwert angenommen. Das ist geraten – bitte prüfen und ggf. in `build.py` (`SCHWERT_STUFE20_VERZAUBERUNG`) ändern.
 8. **„Nur Effizienz“:** Die Spitzhacke hat nur Effizienz. Kein Item bekommt Verzauberungen außer den oben genannten (kein Glück, keine Haltbarkeit usw.).
-9. **Auslöser:** Weg A: Knopf am Befehlsblock. Weg B: `/function waffenpack:start`.
+9. **Auslöser:** Die Items kommen automatisch beim ersten Betreten der Welt; erneut mit `/scoreboard players tag @p remove wp_hat`.
 10. **Anleitung:** verstanden als Schritt-für-Schritt-Anleitung zum Aktivieren – das ist diese Datei.
 11. **Design des Schwerts:** schlicht, rote Klinge mit dunkelrotem Rand, goldener Griff.
 
@@ -107,6 +100,6 @@ Du wolltest keine Rückfragen. Deshalb habe ich so entschieden; alles lässt sic
 - **Schaden 2 Milliarden geht nicht.** Der Angriffsschaden ist auf 2048 begrenzt. Das reicht, um jedes Monster mit einem Schlag zu töten (Enderdrache: 200 Lebenspunkte).
 - **Effizienz 727.000 geht nicht.** Verzauberungsstufen sind auf 32767 begrenzt. Größere Werte übernimmt das Spiel nicht korrekt, deshalb 32767. Blöcke werden damit sofort abgebaut.
 - **Schutz 1000 und Federfall 32000** werden gespeichert, das Spiel verringert Schaden durch Verzauberungen aber höchstens um 80 %. Fallschaden und anderer Schaden sind also nicht vollständig aufgehoben.
-- **Kreativ-Inventar:** Eigene Items können ohne Mod nicht in die Kreativ-Reiter eingetragen werden. Sie kommen nur über die Befehle ins Inventar.
+- **Kreativ-Inventar:** Eigene Items können ohne Mod nicht in die Kreativ-Reiter eingetragen werden. Sie kommen nur über die Welt oder die Befehle ins Inventar.
 - **Bazooka:** explodiert nur bei Einschlag in einen Block. Trifft der Pfeil ein Lebewesen, macht er nur den (hohen) Pfeilschaden.
 - **Pistole/Bazooka:** Pfeile werden erkannt, wenn sie in bis zu 6 Blöcken Abstand zum Spieler mit der Waffe in der Hand fliegen. Andere Pfeile in dieser Nähe (z. B. von Skeletten) können ebenfalls verstärkt werden.

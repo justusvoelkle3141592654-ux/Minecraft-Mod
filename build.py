@@ -6,9 +6,9 @@ Aufruf: python3 build.py
 Erzeugt:
   ressourcenpaket/                     Ressourcenpaket (Ordner)
   Waffenpack-Ressourcenpaket.zip       Ressourcenpaket (ZIP zum Importieren)
-  welt/data/functions/waffenpack/      Funktionen fuer den Weltordner
-  befehle/installer-befehlsblock.txt   Ein Befehl fuer einen Befehlsblock
   befehle/einzelbefehle.txt            Einzelne Chat-Befehle (je max. 256 Zeichen)
+
+Die fertige Welt (Waffenpack-Welt.zip) baut welt_bauen.py mit den Befehlen aus kette().
 
 Alle Werte stehen unten in EINSTELLUNGEN und koennen dort geaendert werden.
 """
@@ -134,36 +134,19 @@ def schreibe(pfad, text):
         f.write(text)
 
 
-def funktionen():
-    start = [give("@s", *i) for i in ITEMS]
-    start.append("gamerule commandBlockOutput false")
-    start.append("gamerule gameLoopFunction waffenpack:tick")
-    schreibe("welt/data/functions/waffenpack/start.mcfunction", "\n".join(start) + "\n")
-    schreibe("welt/data/functions/waffenpack/tick.mcfunction", "\n".join(TICK) + "\n")
+def kette():
+    """Befehle der Befehlsblock-Kette in der Welt (1 Wiederhol-Block, dann Ketten-Bloecke).
 
-
-def installer():
-    """Ein Befehl fuer einen Befehlsblock: gibt alle Items und baut die Tick-Anlage.
-
-    Aufbau (Technik "one command"): Ueber dem Befehlsblock landen ein
-    Redstone-Block und eine Aktivierungsschiene. Darauf fahren Befehlsblock-Loren,
-    die nacheinander ihre Befehle ausfuehren und danach alles wieder entfernen.
-    Die Loren stehen 2 Bloecke ueber dem Befehlsblock.
-    Die Tick-Anlage entsteht in der Reihe ab 2 Bloecke oestlich des Befehlsblocks.
+    Neue Spieler (ohne Markierung wp_hat) bekommen einmal alle Items,
+    danach folgt die Logik fuer Pistole und Bazooka.
     """
-    befehle = [give("@p", *i) for i in ITEMS]
-    befehle.append("gamerule commandBlockOutput false")
-    for n, cmd in enumerate(TICK):
-        block = "repeating_command_block" if n == 0 else "chain_command_block"
-        befehle.append("setblock ~%d ~-2 ~ %s 5 replace {auto:1b,Command:%s}" % (2 + n, block, nbt_string(cmd)))
-    # Aufraeumen: ein Befehlsblock ueber den Loren entfernt sich selbst, Schiene und Redstone-Block
-    befehle.append("setblock ~ ~1 ~ command_block 0 replace {auto:1b,Command:%s}" % nbt_string("fill ~ ~ ~ ~ ~-2 ~ air"))
-    befehle.append("kill @e[type=commandblock_minecart,r=1]")
-    loren = ",".join("{id:commandblock_minecart,Command:%s}" % nbt_string(c) for c in befehle)
-    cmd = ("summon falling_block ~ ~1 ~ {Block:redstone_block,Time:1,Passengers:["
-           "{id:falling_block,Block:activator_rail,Time:1,Passengers:[%s]}]}" % loren)
-    schreibe("befehle/installer-befehlsblock.txt", cmd + "\n")
-    return cmd
+    befehle = ["scoreboard players tag @a[tag=!wp_hat] add wp_neu"]
+    befehle += [give("@a[tag=wp_neu]", *i) for i in ITEMS]
+    befehle += [
+        "scoreboard players tag @a[tag=wp_neu] add wp_hat",
+        "scoreboard players tag @a[tag=wp_neu] remove wp_neu",
+    ]
+    return befehle + TICK
 
 
 def einzelbefehle():
@@ -338,7 +321,5 @@ def ressourcenpaket():
 
 if __name__ == "__main__":
     ressourcenpaket()
-    funktionen()
     einzelbefehle()
-    cmd = installer()
-    print("Fertig. Installer-Befehl: %d Zeichen" % len(cmd))
+    print("Fertig. Die Welt baut welt_bauen.py.")
