@@ -98,23 +98,80 @@ def give(ziel, item, anzahl, damage, tag):
 # Pistole / Bazooka: Befehle, die jeden Tick laufen
 # ---------------------------------------------------------------------------
 
+# Rakete der Bazooka: unsichtbarer Ruestungsstaender, der das Raketenmodell
+# (Diamanthacke mit Schadenswert RAKETE_DAMAGE) auf dem Kopf traegt und jeden
+# Tick zum Bazooka-Pfeil versetzt wird. Die Neigung wird beim Abschuss aus der
+# Blickrichtung des Spielers gewaehlt (7 Stufen), die Drehung vom Spieler kopiert.
+RAKETE_DAMAGE = 10   # Diamanthacke
+DIAMANTHACKE_HALTBARKEIT = 1561
+RAKETE_KOPF_Y = 1.6  # Kopfhoehe ueber den Fuessen des Ruestungsstaenders
+MAX_FLUGZEIT = 160   # Ticks (8 Sekunden)
+
+NEIGUNGEN = [(-90, -60, -75), (-60, -30, -45), (-30, -10, -20), (-10, 10, 0),
+             (10, 30, 20), (30, 60, 45), (60, 90, 75)]
+
+RAKETE_NBT = ("{Invisible:1b,Marker:1b,NoGravity:1b,Invulnerable:1b,Tags:[wp_r,wp_rn],"
+              "ArmorItems:[{},{},{},{id:\"minecraft:diamond_hoe\",Count:1b,Damage:%ds,tag:{Unbreakable:1b}}],"
+              "Pose:{Head:[%%.1ff,0f,0f]}}" % RAKETE_DAMAGE)
+
 TICK = [
     # Wer haelt gerade Pistole oder Bazooka?
     "scoreboard players tag @a remove wp_p",
     "scoreboard players tag @a remove wp_b",
     "scoreboard players tag @a add wp_p {SelectedItem:{tag:{wp:1b}}}",
     "scoreboard players tag @a add wp_b {SelectedItem:{tag:{wp:2b}}}",
-    # Neue Pfeile in der Naehe dieser Spieler markieren
-    "execute @a[tag=wp_p] ~ ~ ~ scoreboard players tag @e[type=arrow,r=6,tag=!wp_alt] add wp_p",
-    "execute @a[tag=wp_b] ~ ~ ~ scoreboard players tag @e[type=arrow,r=6,tag=!wp_alt] add wp_b",
+    # Neue Pfeile in der Naehe dieser Spieler markieren (wp_pn / wp_bn = gerade abgefeuert)
+    "execute @a[tag=wp_p] ~ ~ ~ scoreboard players tag @e[type=arrow,r=6,tag=!wp_alt] add wp_pn",
+    "execute @a[tag=wp_b] ~ ~ ~ scoreboard players tag @e[type=arrow,r=6,tag=!wp_alt] add wp_bn",
     "scoreboard players tag @e[type=arrow] add wp_alt",
-    # Pfeilschaden erhoehen
+    # Pistole: Knall und Muendungsfeuer beim Schuss
+    "execute @e[tag=wp_pn] ~ ~ ~ playsound entity.generic.explode master @a ~ ~ ~ 0.6 2",
+    "execute @e[tag=wp_pn] ~ ~ ~ particle flame ~ ~ ~ 0.1 0.1 0.1 0.05 15 force",
+    "scoreboard players tag @e[tag=wp_pn] add wp_p",
+    "scoreboard players tag @e[tag=wp_p] remove wp_pn",
+    # Bazooka: Rakete erzeugen, Rauch beim Abschuss
+] + [
+    "execute @e[tag=wp_bn] ~ ~ ~ execute @p[tag=wp_b,rxm=%d,rx=%d] ~ ~ ~ summon armor_stand ~ ~ ~ %s"
+    % (von, bis, RAKETE_NBT % neigung) for von, bis, neigung in NEIGUNGEN
+] + [
+    "execute @e[tag=wp_rn] ~ ~ ~ tp @s @p[tag=wp_b]",
+    "scoreboard players tag @e[tag=wp_rn] remove wp_rn",
+    "execute @e[tag=wp_bn] ~ ~ ~ playsound entity.firework.launch master @a ~ ~ ~ 2 0.5",
+    "execute @e[tag=wp_bn] ~ ~ ~ particle smoke ~ ~ ~ 0.2 0.2 0.2 0.02 10 force",
+    "scoreboard players tag @e[tag=wp_bn] add wp_b",
+    "scoreboard players tag @e[tag=wp_b] remove wp_bn",
+    # Schaden erhoehen
     "entitydata @e[type=arrow,tag=wp_p] {damage:%dd}" % PFEIL_SCHADEN,
     "entitydata @e[type=arrow,tag=wp_b] {damage:%dd}" % PFEIL_SCHADEN,
-    # Bazooka-Pfeil im Boden: Explosion
+    # Pistole: Funkenspur, Kugel verschwindet beim Einschlag in einer Rauchwolke
+    "execute @e[type=arrow,tag=wp_p] ~ ~ ~ particle crit ~ ~ ~ 0 0 0 0 2 force",
+    "scoreboard players tag @e[type=arrow,tag=wp_p] add wp_pweg {inGround:1b}",
+    "execute @e[tag=wp_pweg] ~ ~ ~ particle smoke ~ ~ ~ 0.1 0.1 0.1 0.02 10 force",
+    "kill @e[tag=wp_pweg]",
+    # Bazooka-Pfeil im Boden: Explosion, Rakete und Pfeil entfernen
     "scoreboard players tag @e[type=arrow,tag=wp_b] add wp_boom {inGround:1b}",
-    "execute @e[type=arrow,tag=wp_boom] ~ ~ ~ summon tnt ~ ~ ~ {Fuse:0}",
-    "kill @e[type=arrow,tag=wp_boom]",
+    "execute @e[tag=wp_boom] ~ ~ ~ summon tnt ~ ~ ~ {Fuse:0}",
+    "execute @e[tag=wp_boom] ~ ~ ~ particle hugeexplosion ~ ~ ~ 1 1 1 0 3 force",
+    "execute @e[tag=wp_boom] ~ ~ ~ kill @e[tag=wp_r,c=1,r=6]",
+    "kill @e[tag=wp_boom]",
+    # Rakete fliegt mit dem Pfeil, Feuer- und Rauchspur. "teleport" statt "tp":
+    # bei tp waeren ~ ~ ~ relativ zur Rakete selbst, bei teleport relativ zum Pfeil.
+    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ teleport @e[tag=wp_r,c=1] ~ ~-%.1f ~" % RAKETE_KOPF_Y,
+    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ particle flame ~ ~ ~ 0.15 0.15 0.15 0.01 4 force",
+    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ particle smoke ~ ~ ~ 0.15 0.15 0.15 0.01 3 force",
+    # Rakete ohne Pfeil (Pfeil hat ein Lebewesen getroffen): dort explodieren
+    "scoreboard players tag @e[tag=wp_r] add wp_rlos",
+    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ scoreboard players tag @e[tag=wp_r,r=4] remove wp_rlos",
+    "execute @e[tag=wp_rlos] ~ ~%.1f ~ summon tnt ~ ~ ~ {Fuse:0}" % RAKETE_KOPF_Y,
+    "kill @e[tag=wp_rlos]",
+    # Aufraeumen: Geschosse, die laenger als MAX_FLUGZEIT Ticks fliegen, verschwinden.
+    # (In Eaglercraft bewegen sich Objekte am Rand der Sichtweite nicht; sie blieben sonst
+    # in der Luft haengen.) Das Ziel wp_alter legt welt_bauen.py an.
+    "scoreboard players add @e[tag=wp_r] wp_alter 1",
+    "scoreboard players add @e[type=arrow,tag=wp_b] wp_alter 1",
+    "scoreboard players add @e[type=arrow,tag=wp_p] wp_alter 1",
+    "execute @e[score_wp_alter_min=%d] ~ ~ ~ particle cloud ~ ~ ~ 0.3 0.3 0.3 0.02 10 force" % MAX_FLUGZEIT,
+    "kill @e[score_wp_alter_min=%d]" % MAX_FLUGZEIT,
 ]
 
 
@@ -171,6 +228,12 @@ PALETTE = {
     "r": (200, 30, 30, 255),     # Rot
     "d": (110, 10, 15, 255),     # Dunkelrot
     "y": (225, 180, 40, 255),    # Gold
+    "W": (235, 235, 235, 255),   # Weiss
+    "O": (245, 140, 20, 255),    # Flamme orange
+    "F": (255, 230, 80, 255),    # Flamme gelb
+    "M": (220, 180, 70, 255),    # Messing hell
+    "N": (160, 120, 40, 255),    # Messing dunkel
+    "C": (190, 95, 45, 255),     # Kupfer
 }
 
 PISTOLE = [
@@ -231,15 +294,66 @@ SCHWERT = [
 ]
 
 
+# Farbfelder (je 4x4) fuer das Raketenmodell
+RAKETE_TEXTUR = ["rrrrWWWWggggOOOO"] * 4 + ["FFFFddddkkkkhhhh"] * 4 + ["." * 16] * 8
+FELD = {"r": (0, 0), "W": (4, 0), "g": (8, 0), "O": (12, 0),
+        "F": (0, 4), "d": (4, 4), "k": (8, 4), "h": (12, 4)}
+
+# Raketenmodell: Spitze zeigt nach Norden (-z), Laenge 48 Pixel
+RAKETE_TEILE = [
+    ([7, 7, -16], [9, 9, -13], "d"),           # Spitze
+    ([5.5, 5.5, -13], [10.5, 10.5, -9], "r"),
+    ([4, 4, -9], [12, 12, -5], "r"),
+    ([3, 3, -5], [13, 13, 22], "r"),           # Rumpf
+    ([2.5, 2.5, -1], [13.5, 13.5, 3], "W"),    # Streifen
+    ([2.5, 2.5, 12], [13.5, 13.5, 15], "W"),
+    ([7.5, 13, 14], [8.5, 19, 24], "d"),       # Flossen
+    ([7.5, -3, 14], [8.5, 3, 24], "d"),
+    ([-3, 7.5, 14], [3, 8.5, 24], "d"),
+    ([13, 7.5, 14], [19, 8.5, 24], "d"),
+    ([4.5, 4.5, 22], [11.5, 11.5, 25], "g"),   # Duese
+    ([5.5, 5.5, 25], [10.5, 10.5, 29], "O"),   # Flamme
+    ([6.5, 6.5, 29], [9.5, 9.5, 32], "F"),
+]
+RAKETE_GROESSE = 3   # Faktor auf dem Kopf (max. 4); 48 px * 3 * 0.625 / 16 = 5,6 Bloecke
+
+
+def raketen_modell():
+    teile = []
+    for von, bis, farbe in RAKETE_TEILE:
+        u, v = FELD[farbe]
+        uv = [u + 0.5, v + 0.5, u + 3.5, v + 3.5]
+        teile.append({"from": von, "to": bis,
+                      "faces": {seite: {"uv": uv, "texture": "#t"}
+                                for seite in ("north", "south", "east", "west", "up", "down")}})
+    return {
+        "textures": {"t": "items/waffenpack/rakete", "particle": "items/waffenpack/rakete"},
+        "elements": teile,
+        "display": {
+            "head": {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [RAKETE_GROESSE] * 3},
+            "gui": {"rotation": [30, 45, 0], "translation": [0, 0, 0], "scale": [0.35] * 3},
+        },
+    }
+
+
+# Pfeil-Textur (32x32) als Patrone: Seitenansicht oben links (16x5), Rueckseite leer.
+# Gilt fuer alle Pfeile im Spiel.
+KUGEL_TEXTUR = ["." * 32,
+                "......MMMMMMMCC." + "." * 16,
+                "......MMMMMMMCCC" + "." * 16,
+                "......NNNNNNNCC." + "." * 16] + ["." * 32] * 28
+
+
 def png(pfad, raster):
-    assert len(raster) == 16 and all(len(z) == 16 for z in raster)
+    breite, hoehe = len(raster[0]), len(raster)
+    assert all(len(z) == breite for z in raster)
     roh = b"".join(b"\x00" + b"".join(bytes(PALETTE[c]) for c in z) for z in raster)
 
     def chunk(typ, daten):
         return struct.pack(">I", len(daten)) + typ + daten + struct.pack(">I", zlib.crc32(typ + daten) & 0xFFFFFFFF)
 
     daten = (b"\x89PNG\r\n\x1a\n"
-             + chunk(b"IHDR", struct.pack(">IIBBBBB", 16, 16, 8, 6, 0, 0, 0))
+             + chunk(b"IHDR", struct.pack(">IIBBBBB", breite, hoehe, 8, 6, 0, 0, 0))
              + chunk(b"IDAT", zlib.compress(roh, 9))
              + chunk(b"IEND", b""))
     os.makedirs(os.path.dirname(pfad), exist_ok=True)
@@ -309,6 +423,18 @@ def ressourcenpaket():
             {"predicate": {"damaged": 1, "damage": 0}, "model": "item/diamond_sword"},
         ],
     })
+
+    png(os.path.join(tex, "rakete.png"), RAKETE_TEXTUR)
+    json_datei(os.path.join(mod, "waffenpack", "rakete.json"), raketen_modell())
+    json_datei(os.path.join(mod, "diamond_hoe.json"), {
+        "parent": "item/handheld",
+        "textures": {"layer0": "items/diamond_hoe"},
+        "overrides": [
+            {"predicate": {"damaged": 0, "damage": unter(RAKETE_DAMAGE, DIAMANTHACKE_HALTBARKEIT)}, "model": "item/waffenpack/rakete"},
+            {"predicate": {"damaged": 1, "damage": 0}, "model": "item/diamond_hoe"},
+        ],
+    })
+    png(os.path.join(rp, "assets/minecraft/textures/entity/projectiles/arrow.png"), KUGEL_TEXTUR)
 
     # ZIP: pack.mcmeta muss direkt im Hauptverzeichnis liegen
     zpfad = os.path.join(ROOT, "Waffenpack-Ressourcenpaket.zip")

@@ -36,11 +36,11 @@ Getestet:
 python3 html_einbauen.py Eaglercraft_1.12.2_u3_WASM_Offline.html eaglercraft-daten.json Eaglercraft_1.12.2_u3_WASM_Offline_Waffenpack.html
 ```
 
-Benutzen: die neue HTML-Datei öffnen, **Singleplayer → Waffenpack-Welt → Play Selected World**. Die Items liegen sofort im Inventar.
+Benutzen: die neue HTML-Datei öffnen, **Singleplayer → Waffenpack-Welt-2 → Play Selected World**. Die Items liegen sofort im Inventar.
 
 Die HTML-Datei selbst liegt nicht in diesem Repository, weil sie den Programmcode von Eaglercraft/Minecraft enthält.
 
-Getestet in einem leeren Browser-Profil: Ressourcenpaket aktiv, Welt in der Liste, Items beim Betreten im Inventar, eigenes Aussehen der Waffen, Bazooka explodiert.
+Getestet in einem leeren Browser-Profil und in einem Profil mit der vorigen Version: Ressourcenpaket aktiv, Welt in der Liste (eine vorhandene „Waffenpack-Welt“ bleibt erhalten), Items beim Betreten im Inventar, eigenes Aussehen der Waffen, Rakete fliegt und explodiert.
 
 Nicht geprüft: ob Pistole und Bazooka auch weit weg vom Spawnpunkt funktionieren. Die Einstellung „Keep spawn chunks loaded“ aus dem Import (Variante 2) lässt sich nicht mit einbauen; Eaglercraft speichert sie nirgends, wo das Skript sie setzen könnte.
 
@@ -75,7 +75,7 @@ Die Welt startet im Überlebensmodus, Cheats sind an. Kreativmodus: `/gamemode 1
 ```
 
 Hinweise:
-- **Unter dem Spawnpunkt** (Höhe 10) liegt eine Reihe aus 27 Befehlsblöcken, eingeschlossen in Stein. Sie steuert alles; dort nicht graben.
+- **Unter dem Spawnpunkt** (Höhe 10) liegt eine Reihe aus 62 Befehlsblöcken, eingeschlossen in Stein. Sie steuert alles; dort nicht graben.
 - **Keep spawn chunks loaded: Yes** soll den Bereich um den Spawnpunkt geladen halten, damit diese Befehlsblöcke auch weit weg laufen. Geprüft habe ich nur, dass alles in der Nähe des Spawnpunkts funktioniert.
 - **Bazooka:** Die Explosion verletzt auch dich. Nicht auf den Boden direkt vor dir schießen.
 - Die Items gibt es nur in dieser Welt. Für eine andere Welt: die Befehle aus `befehle/einzelbefehle.txt` einzeln in den Chat eingeben (dann sind Pistole und Bazooka nur normale Bögen).
@@ -84,10 +84,10 @@ Hinweise:
 
 | Item | Umsetzung |
 |---|---|
-| Pistole | Bogen mit eigenem Aussehen, unzerbrechlich. Pfeile bekommen Grundschaden 2048. |
-| Bazooka | Bogen mit eigenem Aussehen, unzerbrechlich. Pfeile bekommen Grundschaden 2048 und explodieren beim Einschlag in einen Block (wie TNT). |
+| Pistole | Bogen mit eigenem Aussehen, unzerbrechlich. Schießt goldene Patronen (Grundschaden 2048) mit Knall, Mündungsfeuer und Funkenspur; beim Einschlag verschwindet die Kugel in einer Rauchwolke. |
+| Bazooka | Bogen mit eigenem Aussehen, unzerbrechlich. Schießt eine riesige rot-weiße Rakete (ca. 5,6 Blöcke lang, mit Flossen und Flamme) mit Feuer- und Rauchspur. Explodiert beim Einschlag in einen Block oder ein Lebewesen. |
 | Schwert (eigenes Design) | Diamantschwert mit eigenem Aussehen (rote Klinge, goldener Griff), unzerbrechlich, Angriffsschaden 2048. |
-| Pfeile | 64 Stück, Munition für Pistole und Bazooka im Überlebensmodus. |
+| Pfeile | 64 Stück, Munition für Pistole und Bazooka im Überlebensmodus (sehen als Patronen aus). |
 | OP-Goldäpfel | 64 verzauberte goldene Äpfel |
 | Enderperlen | 16 (ein voller Stapel) |
 | OP-Rüstung | Diamant-Helm, -Brustplatte, -Hose, -Stiefel, jeweils Schutz 1000 |
@@ -103,7 +103,7 @@ Du wolltest keine Rückfragen. Deshalb habe ich so entschieden; alles lässt sic
 
 1. **Anzahl der Items:** alle sechs genannten Items sind enthalten.
 2. **2 Milliarden Schaden:** für alle drei Waffen, so hoch wie technisch möglich (siehe Grenzen).
-3. **Pistole und Bazooka:** als Bogen umgesetzt, Munition sind normale Pfeile, kein eigenes Nachladen. Die Bazooka explodiert beim Einschlag.
+3. **Pistole und Bazooka:** als Bogen umgesetzt, Munition sind Pfeile, kein eigenes Nachladen. Pistole: Patronen mit Knall und Funken. Bazooka: eigene riesige Rakete, Explosion beim Einschlag.
 4. **Enderperlen:** 16.
 5. **Rüstung:** alle vier Teile aus Diamant, jeweils Schutz 1000.
 6. **Federfall:** auf den Stiefeln.
@@ -119,5 +119,7 @@ Du wolltest keine Rückfragen. Deshalb habe ich so entschieden; alles lässt sic
 - **Effizienz 727.000 geht nicht.** Verzauberungsstufen sind auf 32767 begrenzt. Größere Werte übernimmt das Spiel nicht korrekt, deshalb 32767. Blöcke werden damit sofort abgebaut.
 - **Schutz 1000 und Federfall 32000** werden gespeichert, das Spiel verringert Schaden durch Verzauberungen aber höchstens um 80 %. Fallschaden und anderer Schaden sind also nicht vollständig aufgehoben.
 - **Kreativ-Inventar:** Eigene Items können ohne Mod nicht in die Kreativ-Reiter eingetragen werden. Sie kommen nur über die Welt oder die Befehle ins Inventar.
-- **Bazooka:** explodiert nur bei Einschlag in einen Block. Trifft der Pfeil ein Lebewesen, macht er nur den (hohen) Pfeilschaden.
+- **Rakete:** Technisch fliegt unsichtbar ein Pfeil, und ein unsichtbarer Rüstungsständer mit dem Raketenmodell auf dem Kopf wird jeden Tick zu ihm versetzt. Die Neigung der Rakete wird beim Abschuss in 7 Stufen aus der Blickrichtung gewählt und bleibt im Flug gleich.
+- **Patronen-Aussehen gilt für alle Pfeile:** Ohne Mod kann ein Ressourcenpaket Pfeile nicht unterscheiden. Auch Pfeile aus normalen Bögen und von Skeletten sehen deshalb wie Patronen aus.
+- **Geschosse verschwinden nach 8 Sekunden Flug.** In Eaglercraft bewegen sich Objekte am Rand der Sichtweite nicht weiter; ohne diese Regel blieben Raketen dort in der Luft hängen.
 - **Pistole/Bazooka:** Pfeile werden erkannt, wenn sie in bis zu 6 Blöcken Abstand zum Spieler mit der Waffe in der Hand fliegen. Andere Pfeile in dieser Nähe (z. B. von Skeletten) können ebenfalls verstärkt werden.

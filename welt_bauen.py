@@ -168,6 +168,7 @@ def main():
     befehle = build.kette()
     s = Server(jar, arbeit)
     s.befehl("gamerule commandBlockOutput false")
+    s.befehl("scoreboard objectives add wp_alter dummy")
     s.befehl("fill %d %d %d %d %d %d stone" % (x - 1, KETTE_Y - 1, z - 1, x + len(befehle), KETTE_Y + 1, z + 1), 0.5)
     for i, cmd in enumerate(befehle):
         block = "repeating_command_block" if i == 0 else "chain_command_block"
