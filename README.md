@@ -25,8 +25,26 @@ Getestet:
 | `ressourcenpaket/` | Inhalt der Ressourcenpaket-ZIP als Ordner |
 | `build.py` | Erzeugt Ressourcenpaket und Befehle neu. Alle Werte stehen oben in der Datei. |
 | `welt_bauen.py` | Baut `Waffenpack-Welt.zip` neu (braucht den originalen 1.12.2-Server). |
+| `html_einbauen.py` | Baut Ressourcenpaket und Welt in eine eigene Eaglercraft-1.12.2-Offline-HTML-Datei ein. |
+| `eaglercraft-daten.json` | Ressourcenpaket und Welt im Speicherformat von Eaglercraft (Eingabe für `html_einbauen.py`). |
 
-## Anleitung für Eaglercraft 1.12.2
+## Variante 1: HTML-Datei mit eingebautem Waffenpack
+
+`html_einbauen.py` ergänzt die Datei `Eaglercraft_1.12.2_u3_WASM_Offline.html` um ein Skript. Beim ersten Start legt es Ressourcenpaket und Welt im Browser an und schaltet das Ressourcenpaket ein, als wären sie von Hand importiert worden. Danach tut es nichts mehr.
+
+```
+python3 html_einbauen.py Eaglercraft_1.12.2_u3_WASM_Offline.html eaglercraft-daten.json Eaglercraft_1.12.2_u3_WASM_Offline_Waffenpack.html
+```
+
+Benutzen: die neue HTML-Datei öffnen, **Singleplayer → Waffenpack-Welt → Play Selected World**. Die Items liegen sofort im Inventar.
+
+Die HTML-Datei selbst liegt nicht in diesem Repository, weil sie den Programmcode von Eaglercraft/Minecraft enthält.
+
+Getestet in einem leeren Browser-Profil: Ressourcenpaket aktiv, Welt in der Liste, Items beim Betreten im Inventar, eigenes Aussehen der Waffen, Bazooka explodiert.
+
+Nicht geprüft: ob Pistole und Bazooka auch weit weg vom Spawnpunkt funktionieren. Die Einstellung „Keep spawn chunks loaded“ aus dem Import (Variante 2) lässt sich nicht mit einbauen; Eaglercraft speichert sie nirgends, wo das Skript sie setzen könnte.
+
+## Variante 2: Dateien von Hand importieren (Eaglercraft 1.12.2)
 
 ### 1. Ressourcenpaket laden (einmalig)
 
@@ -40,7 +58,7 @@ Getestet:
 
 1. **Singleplayer → Create New World → Import Vanilla World**.
 2. `Waffenpack-Welt.zip` auswählen.
-3. **Keep spawn chunks loaded** auf **Yes** stellen (wichtig, siehe unten).
+3. **Keep spawn chunks loaded** auf **Yes** stellen (siehe Hinweise unten).
 4. **Continue** klicken.
 
 ### 3. Spielen
@@ -58,7 +76,7 @@ Die Welt startet im Überlebensmodus, Cheats sind an. Kreativmodus: `/gamemode 1
 
 Hinweise:
 - **Unter dem Spawnpunkt** (Höhe 10) liegt eine Reihe aus 27 Befehlsblöcken, eingeschlossen in Stein. Sie steuert alles; dort nicht graben.
-- **Keep spawn chunks loaded: Yes** sorgt dafür, dass diese Befehlsblöcke überall in der Oberwelt laufen. Mit „No“ funktionieren Pistole und Bazooka nur in der Nähe des Spawnpunkts.
+- **Keep spawn chunks loaded: Yes** soll den Bereich um den Spawnpunkt geladen halten, damit diese Befehlsblöcke auch weit weg laufen. Geprüft habe ich nur, dass alles in der Nähe des Spawnpunkts funktioniert.
 - **Bazooka:** Die Explosion verletzt auch dich. Nicht auf den Boden direkt vor dir schießen.
 - Die Items gibt es nur in dieser Welt. Für eine andere Welt: die Befehle aus `befehle/einzelbefehle.txt` einzeln in den Chat eingeben (dann sind Pistole und Bazooka nur normale Bögen).
 

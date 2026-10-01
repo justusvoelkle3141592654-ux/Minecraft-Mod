@@ -83,20 +83,29 @@ def _wr(f, t, v):
         f.write(struct.pack(">i", len(v)) + struct.pack(">%dq" % len(v), *v))
 
 
-def lade_nbt(pfad):
-    f = io.BytesIO(gzip.open(pfad).read())
+def lade_nbt_bytes(daten):
+    f = io.BytesIO(gzip.decompress(daten))
     t = f.read(1)[0]
     name = f.read(struct.unpack(">H", f.read(2))[0]).decode("utf-8")
     return name, _rd(f, t)
 
 
-def speichere_nbt(pfad, name, wurzel):
+def nbt_bytes(name, wurzel):
     f = io.BytesIO()
     b = name.encode("utf-8")
     f.write(b"\x0a" + struct.pack(">H", len(b)) + b)
     _wr(f, 10, wurzel)
-    with gzip.open(pfad, "wb") as g:
-        g.write(f.getvalue())
+    return gzip.compress(f.getvalue())
+
+
+def lade_nbt(pfad):
+    with open(pfad, "rb") as f:
+        return lade_nbt_bytes(f.read())
+
+
+def speichere_nbt(pfad, name, wurzel):
+    with open(pfad, "wb") as f:
+        f.write(nbt_bytes(name, wurzel))
 
 
 # --- Server steuern -----------------------------------------------------------
@@ -176,7 +185,12 @@ def main():
     daten["allowCommands"] = (1, 1)
     daten["GameType"] = (3, 0)
     daten["LevelName"] = (8, WELTNAME)
+    # Der Server hat beim Start das Ende geladen und den Drachenkampf als beendet
+    # gespeichert. Ende-Daten entfernen, damit es wie in einer neuen Welt beim
+    # ersten Besuch entsteht (mit Drache).
+    daten.pop("DimensionData", None)
     speichere_nbt(os.path.join(welt, "level.dat"), name, wurzel)
+    shutil.rmtree(os.path.join(welt, "DIM1"), ignore_errors=True)
     for rest in ("session.lock", "level.dat_old"):
         if os.path.exists(os.path.join(welt, rest)):
             os.remove(os.path.join(welt, rest))
