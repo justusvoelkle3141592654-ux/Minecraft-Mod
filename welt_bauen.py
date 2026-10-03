@@ -21,6 +21,7 @@ import threading
 import time
 import zipfile
 
+import backrooms
 import build
 
 WELTNAME = "Waffenpack"
@@ -113,9 +114,10 @@ def speichere_nbt(pfad, name, wurzel):
 class Server:
     def __init__(self, jar, ordner):
         self.log = []
-        self.p = subprocess.Popen(["java", "-Xmx1G", "-jar", jar, "nogui"], cwd=ordner,
+        self.p = subprocess.Popen(["java", "-Xmx1G", "-Dfile.encoding=UTF-8", "-Dstdin.encoding=UTF-8",
+                                   "-jar", jar, "nogui"], cwd=ordner,
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                  stderr=subprocess.STDOUT, text=True, encoding="utf-8", bufsize=1)
         threading.Thread(target=self._lesen, daemon=True).start()
         self.warte("Done (")
 
@@ -156,31 +158,73 @@ def main():
                 "gamemode=0\nenable-command-block=true\nspawn-protection=0\n" % WELTNAME)
     welt = os.path.join(arbeit, WELTNAME)
 
-    # 1. Welt erzeugen, Spawnpunkt lesen
-    s = Server(jar, arbeit)
-    s.stop()
-    _, wurzel = lade_nbt(os.path.join(welt, "level.dat"))
-    daten = wurzel["Data"][1]
-    x, z = daten["SpawnX"][1], daten["SpawnZ"][1]
-    print("Spawnpunkt:", x, z)
+    # 1. Welt erzeugen, Spawnpunkt lesen, Oberflaeche am Spawnpunkt suchen (Ziel fuer
+    #    den Rueckweg aus den Backrooms). Liegt der Spawnpunkt im Wasser, neue Welt.
+    for versuch in range(8):
+        s = Server(jar, arbeit)
+        s.stop()
+        _, wurzel = lade_nbt(os.path.join(welt, "level.dat"))
+        daten = wurzel["Data"][1]
+        x, z = daten["SpawnX"][1], daten["SpawnZ"][1]
+        print("Spawnpunkt:", x, z)
+        s = Server(jar, arbeit)
+        oben = None
+        for y in range(140, 50, -1):
+            n = s.befehl("testforblock %d %d %d air" % (x, y, z), 0.15)
+            if any("is " in zeile and "expected" in zeile for zeile in s.log[n:]):
+                oben = y + 1
+                break
+        if oben is None:
+            sys.exit("Oberflaeche nicht gefunden")
+        n = s.befehl("testforblock %d %d %d water" % (x, oben - 1, z), 1)
+        if not any("Successfully found" in zeile for zeile in s.log[n:]):
+            break
+        print("Spawnpunkt im Wasser, neue Welt")
+        s.stop()
+        shutil.rmtree(welt)
+    else:
+        sys.exit("Keine Welt mit Spawnpunkt an Land gefunden")
+    print("Oberflaeche:", oben)
+    geo = backrooms.Geo(x, z, oben)
 
-    # 2. Kette unter dem Spawnpunkt einbauen (Richtung Osten, in Stein eingeschlossen)
-    befehle = build.kette()
-    s = Server(jar, arbeit)
-    s.befehl("gamerule commandBlockOutput false")
-    s.befehl("scoreboard objectives add wp_alter dummy")
-    s.befehl("fill %d %d %d %d %d %d stone" % (x - 1, KETTE_Y - 1, z - 1, x + len(befehle), KETTE_Y + 1, z + 1), 0.5)
-    for i, cmd in enumerate(befehle):
-        block = "repeating_command_block" if i == 0 else "chain_command_block"
-        s.befehl("setblock %d %d %d %s 5 replace {auto:1b,Command:%s}"
-                 % (x + i, KETTE_Y, z, block, build.nbt_string(cmd)))
-    time.sleep(1)
-    n = s.befehl("testforblock %d %d %d chain_command_block" % (x + len(befehle) - 1, KETTE_Y, z), 1)
-    if not any("Successfully found" in zeile for zeile in s.log[n:]):
-        sys.exit("Kette wurde nicht vollstaendig gebaut")
+    # 2. Backrooms bauen
+    # logAdminCommands aus: sonst schreibt der Server jede Befehlsblock-Ausgabe ins
+    # Protokoll (in Eaglercraft in die Browser-Konsole, das kostet Leistung).
+    for cmd in ["gamerule commandBlockOutput false", "gamerule logAdminCommands false", "gamerule keepInventory true",
+                "scoreboard objectives add wp_alter dummy"] + backrooms.objectives():
+        s.befehl(cmd)
+    bau = backrooms.bau_befehle(geo)
+    fehler_vorher = len(s.log)
+    for cmd in bau:
+        s.befehl(cmd, 0)
+    s.befehl("say BAU_FERTIG", 0)
+    s.warte("BAU_FERTIG", 600)
+    fehler = [z for z in s.log[fehler_vorher:] if "outside of the world" in z or "Unknown" in z or "Invalid" in z
+              or "Couldn't" in z or "cannot" in z.lower()]
+    if fehler:
+        print("\n".join(fehler[:10]))
+        sys.exit("Fehler beim Bau der Backrooms")
+
+    # 3. Befehlsketten unter dem Spawnpunkt (je Reihe ein Wiederhol-Block, Richtung Osten)
+    reihen = [build.kette()] + backrooms.ketten(geo)
+    gesamt = 0
+    for r, befehle in enumerate(reihen):
+        zr = z + 2 * r
+        s.befehl("fill %d %d %d %d %d %d stone" % (x - 1, KETTE_Y - 1, zr - 1, x + len(befehle), KETTE_Y + 1, zr + 1), 0.3)
+        for i, cmd in enumerate(befehle):
+            block = "repeating_command_block" if i == 0 else "chain_command_block"
+            s.befehl("setblock %d %d %d %s 5 replace {auto:1b,Command:%s}"
+                     % (x + i, KETTE_Y, zr, block, build.nbt_string(cmd)), 0)
+        gesamt += len(befehle)
+    s.befehl("summon armor_stand %d %d %d {Marker:1b,Invisible:1b,NoGravity:1b,Tags:[br_state]}" % geo.zustand)
+    time.sleep(2)
+    for r, befehle in enumerate(reihen):
+        n = s.befehl("testforblock %d %d %d chain_command_block" % (x + len(befehle) - 1, KETTE_Y, z + 2 * r), 1)
+        if not any("Successfully found" in zeile for zeile in s.log[n:]):
+            sys.exit("Kette %d wurde nicht vollstaendig gebaut" % r)
     s.stop()
 
-    # 3. level.dat: Cheats an, Ueberleben
+    # 4. level.dat: Cheats an, Ueberleben
     name, wurzel = lade_nbt(os.path.join(welt, "level.dat"))
     daten = wurzel["Data"][1]
     daten["allowCommands"] = (1, 1)
@@ -196,7 +240,7 @@ def main():
         if os.path.exists(os.path.join(welt, rest)):
             os.remove(os.path.join(welt, rest))
 
-    # 4. Packen
+    # 5. Packen
     ziel = os.path.join(build.ROOT, "Waffenpack-Welt.zip")
     with zipfile.ZipFile(ziel, "w", zipfile.ZIP_DEFLATED) as zf:
         for ordner, _, dateien in sorted(os.walk(welt)):
@@ -204,7 +248,7 @@ def main():
                 voll = os.path.join(ordner, d)
                 zf.write(voll, os.path.relpath(voll, arbeit).replace(os.sep, "/"))
     shutil.rmtree(arbeit)
-    print("Fertig:", ziel, "(%d Befehlsbloecke)" % len(befehle))
+    print("Fertig:", ziel, "(%d Befehlsbloecke in %d Reihen)" % (gesamt, len(reihen)))
 
 
 if __name__ == "__main__":

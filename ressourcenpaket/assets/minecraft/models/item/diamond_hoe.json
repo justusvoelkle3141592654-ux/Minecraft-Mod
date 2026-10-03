@@ -13,6 +13,62 @@
     },
     {
       "predicate": {
+        "damaged": 0,
+        "damage": 0.012802
+      },
+      "model": "item/waffenpack/warden_a"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.013443
+      },
+      "model": "item/waffenpack/warden_b"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.014084
+      },
+      "model": "item/waffenpack/smiler_a"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.014724
+      },
+      "model": "item/waffenpack/smiler_b"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.015365
+      },
+      "model": "item/waffenpack/hound_a"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.016005
+      },
+      "model": "item/waffenpack/hound_b"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.016646
+      },
+      "model": "item/waffenpack/hautdieb_a"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.017287
+      },
+      "model": "item/waffenpack/hautdieb_b"
+    },
+    {
+      "predicate": {
         "damaged": 1,
         "damage": 0
       },

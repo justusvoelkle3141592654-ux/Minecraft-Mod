@@ -11,7 +11,8 @@ Format um).
 Die HTML-Datei bekommt ein zusaetzliches Skript. Es laeuft vor dem Spielstart
 und legt beim ersten Start Ressourcenpaket und Welt in der Browser-Datenbank an
 und schaltet das Ressourcenpaket ein. Danach (Merker im localStorage) nicht mehr.
-Die Original-Datei wird nicht veraendert.
+Ausserdem macht das Skript im Einzelspieler den Chatbefehl /start verfuegbar
+(wird zu /trigger start set 1). Die Original-Datei wird nicht veraendert.
 """
 
 import base64
@@ -22,10 +23,10 @@ import sys
 
 import welt_bauen
 
-WELT = "Waffenpack-Welt-2"   # neuer Name, damit eine vorhandene Waffenpack-Welt erhalten bleibt
+WELT = "Waffenpack-Welt-3"   # neuer Name, damit vorhandene Waffenpack-Welten erhalten bleiben
 PAKET = "Waffenpack-Ressourcenpaket"
 DB = "_net_lax1dude_eaglercraft_v1_8_internal_PlatformFilesystem_1_12_2_"
-MERKER = "waffenpack_installiert_v2"
+MERKER = "waffenpack_installiert_v3"
 ANKER = '<script type="text/javascript">\n"use strict";\n(function(){\n\twindow.eaglercraftXOpts.assetsURI'
 
 SKRIPT = """<script type="text/javascript">
@@ -90,6 +91,27 @@ SKRIPT = """<script type="text/javascript">
 		localStorage.setItem(MERKER, "1");
 		console.log("Waffenpack: installiert (" + dateien.length + " Dateien)");
 	}
+	// Chatbefehl /start: Eaglercraft schickt im Einzelspieler jedes Paket als eigene
+	// Nachricht an den Server-Worker. Ein Chat-Paket (Kennung 2, Laenge, Text) mit
+	// genau "/start" wird dort durch "/trigger start set 1" ersetzt.
+	var START_NEU = new TextEncoder().encode("/trigger start set 1");
+	var postOriginal = Worker.prototype.postMessage;
+	Worker.prototype.postMessage = function(m) {
+		try {
+			if (m && m.ch === "~!LOCAL_PLAYER" && m.dat instanceof ArrayBuffer && m.dat.byteLength <= 40) {
+				var u = new Uint8Array(m.dat);
+				if (u[0] === 2 && u[1] === u.length - 2) {
+					var text = new TextDecoder().decode(u.subarray(2)).trim().toLowerCase();
+					if (text === "/start") {
+						var neu = new Uint8Array(2 + START_NEU.length);
+						neu[0] = 2; neu[1] = START_NEU.length; neu.set(START_NEU, 2);
+						arguments[0] = { ch: m.ch, dat: neu.buffer };
+					}
+				}
+			}
+		} catch (e) {}
+		return postOriginal.apply(this, arguments);
+	};
 	var originalMain = window.main;
 	window.main = async function() {
 		try { await installieren(); } catch (e) { console.error("Waffenpack: Fehler beim Installieren: " + e); }

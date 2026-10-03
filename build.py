@@ -20,6 +20,9 @@ import struct
 import zipfile
 import zlib
 
+import grafik
+import modelle
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
@@ -58,6 +61,8 @@ PISTOLE_DAMAGE = 1   # Bogen
 BAZOOKA_DAMAGE = 2   # Bogen
 SCHWERT_DAMAGE = 1   # Diamantschwert
 
+LAMPE_DAMAGE = 1     # Karottenrute
+KAROTTENRUTE_HALTBARKEIT = 25
 BOGEN_HALTBARKEIT = 384
 DIAMANTSCHWERT_HALTBARKEIT = 1561
 
@@ -71,12 +76,17 @@ def ench(*paare):
 
 
 # (item, anzahl, damage, tag)
+LAMPE = ("carrot_on_a_stick", 1, LAMPE_DAMAGE, "{Unbreakable:1b,br:1b,display:{Name:Taschenlampe}}")
+
 ITEMS = [
     ("bow", 1, PISTOLE_DAMAGE, "{Unbreakable:1b,wp:1b,display:{Name:Pistole}}"),
     ("bow", 1, BAZOOKA_DAMAGE, "{Unbreakable:1b,wp:2b,display:{Name:Bazooka}}"),
     ("diamond_sword", 1, SCHWERT_DAMAGE,
      "{Unbreakable:1b,display:{Name:Schwert},AttributeModifiers:[{AttributeName:generic.attackDamage,"
      "Name:wp,Amount:%dd,Operation:0,UUIDLeast:1L,UUIDMost:1L,Slot:mainhand}]}" % SCHWERT_ATTRIBUT_BONUS),
+    LAMPE,
+    ("tnt", 64, 0, "{display:{Name:Sonder-TNT}}"),
+    ("flint_and_steel", 1, 0, "{Unbreakable:1b}"),
     ("arrow", PFEILE_ANZAHL, 0, None),
     ("golden_apple", GOLDAEPFEL_ANZAHL, 1, None),
     ("ender_pearl", ENDERPERLEN_ANZAHL, 0, None),
@@ -200,6 +210,10 @@ def kette():
     befehle = ["scoreboard players tag @a[tag=!wp_hat] add wp_neu"]
     befehle += [give("@a[tag=wp_neu]", *i) for i in ITEMS]
     befehle += [
+        "tellraw @a[tag=wp_neu] " + json.dumps(
+            [{"text": "Willkommen! ", "color": "gold", "bold": True},
+             {"text": "Tippe ", "color": "white"}, {"text": "/start", "color": "yellow", "bold": True},
+             {"text": ", um die Backrooms zu betreten.", "color": "white"}], ensure_ascii=False),
         "scoreboard players tag @a[tag=wp_neu] add wp_hat",
         "scoreboard players tag @a[tag=wp_neu] remove wp_neu",
     ]
@@ -235,44 +249,6 @@ PALETTE = {
     "N": (160, 120, 40, 255),    # Messing dunkel
     "C": (190, 95, 45, 255),     # Kupfer
 }
-
-PISTOLE = [
-    "................",
-    "................",
-    "................",
-    "................",
-    "..kkkkkkkkkkkk..",
-    "..khhhhhhhhhhhk.",
-    "..kggggggggggggk",
-    "..kkkkkkkkkkkkk.",
-    "...kbbk.kk......",
-    "...kbbk..k......",
-    "...kbbkkkk......",
-    "..kbbbk.........",
-    "..kbbbk.........",
-    "..kbbbk.........",
-    "..kkkkk.........",
-    "................",
-]
-
-BAZOOKA = [
-    "................",
-    "............kkk.",
-    "...........kolkk",
-    "..........kollok",
-    ".........kollok.",
-    "........kollok..",
-    ".......kollok...",
-    "......kollok....",
-    ".....kollok.....",
-    "....kollokk.....",
-    "...kollokbk.....",
-    "..kollok.kbk....",
-    ".kollok...kk....",
-    "kkollok.........",
-    "kkkok...........",
-    ".kkk............",
-]
 
 SCHWERT = [
     "..............kk",
@@ -379,14 +355,49 @@ def ressourcenpaket():
     if os.path.isdir(rp):
         shutil.rmtree(rp)
     json_datei(os.path.join(rp, "pack.mcmeta"),
-               {"pack": {"pack_format": 3, "description": "Waffenpack: Pistole, Bazooka, Schwert"}})
+               {"pack": {"pack_format": 3, "description": "Waffenpack + Backrooms"}})
 
     tex = os.path.join(rp, "assets/minecraft/textures/items/waffenpack")
     mod = os.path.join(rp, "assets/minecraft/models/item")
-    for name, raster in (("pistole", PISTOLE), ("bazooka", BAZOOKA), ("schwert", SCHWERT)):
-        png(os.path.join(tex, name + ".png"), raster)
-        json_datei(os.path.join(mod, "waffenpack", name + ".json"),
-                   {"parent": "item/handheld", "textures": {"layer0": "items/waffenpack/" + name}})
+    png(os.path.join(tex, "schwert.png"), SCHWERT)
+    json_datei(os.path.join(mod, "waffenpack", "schwert.json"),
+               {"parent": "item/handheld", "textures": {"layer0": "items/waffenpack/schwert"}})
+
+    # 3D-Gegenstaende
+    for name, datei, funktion in (("pistole", "pistole3d", modelle.pistole),
+                                  ("bazooka", "bazooka3d", modelle.bazooka),
+                                  ("taschenlampe", "taschenlampe", modelle.taschenlampe)):
+        atlas, modell = funktion()
+        atlas.bild.speichern(os.path.join(tex, datei + ".png"))
+        json_datei(os.path.join(mod, "waffenpack", name + ".json"), modell)
+    json_datei(os.path.join(mod, "carrot_on_a_stick.json"), {
+        "parent": "item/handheld_rod",
+        "textures": {"layer0": "items/carrot_on_a_stick"},
+        "overrides": [
+            {"predicate": {"damaged": 0, "damage": unter(LAMPE_DAMAGE, KAROTTENRUTE_HALTBARKEIT)}, "model": "item/waffenpack/taschenlampe"},
+            {"predicate": {"damaged": 1, "damage": 0}, "model": "item/carrot_on_a_stick"},
+        ],
+    })
+
+    # Monster (je zwei Animationsbilder)
+    hacke = [{"predicate": {"damaged": 0, "damage": unter(RAKETE_DAMAGE, DIAMANTHACKE_HALTBARKEIT)}, "model": "item/waffenpack/rakete"}]
+    for name, (atlas_f, modell_f) in modelle.MONSTER.items():
+        atlas = atlas_f()
+        atlas.bild.speichern(os.path.join(tex, name + ".png"))
+        for bild, dmg in zip(("a", "b"), modelle.MONSTER_DAMAGE[name]):
+            json_datei(os.path.join(mod, "waffenpack", "%s_%s.json" % (name, bild)), modell_f(atlas, bild))
+            hacke.append({"predicate": {"damaged": 0, "damage": unter(dmg, DIAMANTHACKE_HALTBARKEIT)},
+                          "model": "item/waffenpack/%s_%s" % (name, bild)})
+    hacke.sort(key=lambda o: o["predicate"]["damage"])
+    hacke.append({"predicate": {"damaged": 1, "damage": 0}, "model": "item/diamond_hoe"})
+
+    # Block-Texturen der Backrooms und das Sonder-TNT
+    btex = os.path.join(rp, "assets/minecraft/textures/blocks")
+    for name, funktion in grafik.BLOCK_TEXTUREN.items():
+        funktion().speichern(os.path.join(btex, name + ".png"))
+    for name, (streifen, meta) in grafik.animierte_bloecke().items():
+        streifen.speichern(os.path.join(btex, name + ".png"))
+        json_datei(os.path.join(btex, name + ".png.mcmeta"), meta)
 
     # Vanilla-Modell des Bogens (1.12.2) plus eigene Eintraege.
     # Es gilt der letzte passende Eintrag. "damaged": 0 trifft nur auf unzerbrechliche
@@ -429,10 +440,7 @@ def ressourcenpaket():
     json_datei(os.path.join(mod, "diamond_hoe.json"), {
         "parent": "item/handheld",
         "textures": {"layer0": "items/diamond_hoe"},
-        "overrides": [
-            {"predicate": {"damaged": 0, "damage": unter(RAKETE_DAMAGE, DIAMANTHACKE_HALTBARKEIT)}, "model": "item/waffenpack/rakete"},
-            {"predicate": {"damaged": 1, "damage": 0}, "model": "item/diamond_hoe"},
-        ],
+        "overrides": hacke,
     })
     png(os.path.join(rp, "assets/minecraft/textures/entity/projectiles/arrow.png"), KUGEL_TEXTUR)
 
