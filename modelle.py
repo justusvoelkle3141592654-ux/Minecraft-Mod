@@ -15,6 +15,8 @@ MONSTER_DAMAGE = {
     "smiler": (22, 23),
     "hound": (24, 25),
     "hautdieb": (26, 27),
+    "partygaenger": (28, 29),
+    "faceling": (30, 31),
 }
 
 
@@ -245,11 +247,93 @@ def hautdieb(atlas, bild):
     return m.json(k.display())
 
 
+# ---------------------------------------------------------------------------
+# Partygaenger (Level 3): gelbes Kostuem, aufgemaltes Grinsen, roter Ballon
+# ---------------------------------------------------------------------------
+
+def partygaenger_atlas():
+    a = Atlas()
+    a.kachel("stoff", kachel((236, 200, 40), 0.07, 801, ((214, 176, 30), 0.1)))
+    g = kachel((240, 206, 48), 0.05, 802)
+    g.ellipse(4.5, 5, 1.3, 2.2, (20, 16, 10))
+    g.ellipse(11.5, 5, 1.3, 2.2, (20, 16, 10))
+    for x in range(2, 14):
+        y = 10 + int(round(((x - 7.5) / 6) ** 2 * -3)) + 2
+        g.set(x, y, (20, 16, 10))
+        g.set(x, y + 1, (20, 16, 10))
+    g.set(1, 9, (20, 16, 10))
+    g.set(14, 9, (20, 16, 10))
+    a.kachel("gesicht", g)
+    a.kachel("dunkel", kachel((150, 120, 20), 0.08, 803))
+    a.kachel("ballon", kachel((220, 30, 40), 0.06, 804, ((255, 120, 120), 0.04)))
+    schnur = Bild(16, 16)
+    schnur.rechteck(0, 0, 16, 16, (230, 230, 230))
+    a.kachel("schnur", schnur)
+    return a
+
+
+def partygaenger(atlas, bild):
+    m = Modell(atlas, "items/waffenpack/partygaenger")
+    k = Koerper(m, 2.0)
+    s = 22.5 if bild == "a" else -22.5
+    k.quader([-0.24, 0, -0.1], [-0.04, 0.85, 0.1], "dunkel", ("x", s, [-0.14, 0.82, 0]))
+    k.quader([0.04, 0, -0.1], [0.24, 0.85, 0.1], "dunkel", ("x", -s, [0.14, 0.82, 0]))
+    k.quader([-0.27, 0.8, -0.14], [0.27, 1.55, 0.14], "stoff")
+    k.quader([-0.3, 1.5, -0.3], [0.3, 2.1, 0.3], {"alle": "stoff", "north": "gesicht"})
+    # Arme; rechts haelt er den Ballon
+    k.quader([-0.4, 0.85, -0.08], [-0.27, 1.55, 0.08], "stoff", ("x", -s, [-0.33, 1.5, 0]))
+    k.quader([0.27, 1.45, -0.08], [0.4, 2.1, 0.08], "stoff")
+    k.quader([0.32, 2.1, -0.01], [0.35, 2.75, 0.02], "schnur")
+    dy = 0.04 if bild == "a" else -0.04
+    k.quader([0.12, 2.72 + dy, -0.2], [0.55, 3.18 + dy, 0.2], "ballon")
+    return m.json(k.display())
+
+
+# ---------------------------------------------------------------------------
+# Faceling (Level 4): Bueroangestellter ohne Gesicht
+# ---------------------------------------------------------------------------
+
+def faceling_atlas():
+    a = Atlas()
+    a.kachel("haut", kachel((214, 178, 150), 0.04, 901))
+    h = kachel((206, 170, 142), 0.04, 902)
+    h.rechteck(0, 0, 16, 4, (52, 38, 28))
+    a.kachel("kopf", h)
+    a.kachel("haar", kachel((52, 38, 28), 0.08, 903))
+    hemd = kachel((232, 232, 228), 0.03, 904)
+    hemd.rechteck(7, 0, 2, 13, (40, 50, 90))
+    hemd.set(7, 13, (40, 50, 90))
+    hemd.set(8, 13, (40, 50, 90))
+    hemd.rechteck(5, 0, 6, 1, (200, 200, 196))
+    a.kachel("hemd_vorne", hemd)
+    a.kachel("hemd", kachel((232, 232, 228), 0.03, 905))
+    a.kachel("hose", kachel((60, 62, 70), 0.05, 906))
+    a.kachel("schuh", kachel((24, 22, 22), 0.05, 907))
+    return a
+
+
+def faceling(atlas, bild):
+    m = Modell(atlas, "items/waffenpack/faceling")
+    k = Koerper(m, 2.0)
+    s = 22.5 if bild == "a" else -22.5
+    for x0, x1, v in ((-0.25, -0.02, s), (0.02, 0.25, -s)):
+        k.quader([x0, 0.08, -0.12], [x1, 0.85, 0.12], "hose", ("x", v, [(x0 + x1) / 2, 0.82, 0]))
+        k.quader([x0, 0, -0.16], [x1, 0.1, 0.12], "schuh", ("x", v, [(x0 + x1) / 2, 0.82, 0]))
+    k.quader([-0.27, 0.8, -0.13], [0.27, 1.5, 0.13], {"alle": "hemd", "north": "hemd_vorne"})
+    for x0, x1, v in ((-0.4, -0.27, -s), (0.27, 0.4, s)):
+        k.quader([x0, 0.85, -0.08], [x1, 1.5, 0.08], "hemd", ("x", v, [(x0 + x1) / 2, 1.45, 0]))
+        k.quader([x0, 0.78, -0.07], [x1, 0.88, 0.07], "haut", ("x", v, [(x0 + x1) / 2, 1.45, 0]))
+    k.quader([-0.24, 1.5, -0.24], [0.24, 1.98, 0.24], {"alle": "kopf", "up": "haar", "south": "haar"})
+    return m.json(k.display())
+
+
 MONSTER = {
     "warden": (warden_atlas, warden),
     "smiler": (smiler_atlas, smiler),
     "hound": (hound_atlas, hound),
     "hautdieb": (hautdieb_atlas, hautdieb),
+    "partygaenger": (partygaenger_atlas, partygaenger),
+    "faceling": (faceling_atlas, faceling),
 }
 
 
@@ -386,3 +470,206 @@ def taschenlampe():
         "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [1, 1, 1]},
     }
     return a, m.json(disp)
+
+
+
+# ---------------------------------------------------------------------------
+# Minigun: sechs Laeufe (drehen sich ueber eine animierte Textur)
+# ---------------------------------------------------------------------------
+
+def _rotations_streifen(frame, hell_f=1.0):
+    b = Bild(16, 16)
+    for y in range(16):
+        c = (150, 154, 160) if ((y + frame) // 2) % 2 else (96, 100, 106)
+        for x in range(16):
+            b.set(x, y, hell(c, hell_f))
+    return b
+
+
+def minigun(frames=4):
+    """Rueckgabe: (Atlas-Animation als Bild, Modell-JSON, mcmeta)."""
+    bilder = []
+    for f in range(frames):
+        a = Atlas()
+        a.kachel("lauf", _rotations_streifen(f))
+        g = kachel((56, 58, 64), 0.05, 1001)
+        for x in range(0, 16, 5):
+            for y in range(16):
+                g.set(x, y, (40, 42, 46))
+        for p in ((2, 2), (13, 2), (2, 13), (13, 13)):
+            g.set(*p, (140, 142, 148))
+        a.kachel("gehaeuse", g)
+        a.kachel("metall", kachel((38, 40, 44), 0.05, 1002))
+        a.kachel("griff", kachel((20, 20, 22), 0.08, 1003))
+        kist = kachel((84, 92, 52), 0.07, 1004)
+        kist.rahmen(0, 0, 16, 16, (60, 66, 36))
+        for x in range(4, 12):
+            kist.set(x, 7, (220, 210, 150))
+            kist.set(x, 8, (220, 210, 150))
+        a.kachel("kasten", kist)
+        gurt = Bild(16, 16)
+        for x in range(16):
+            for y in range(16):
+                gurt.set(x, y, (212, 168, 60) if (x // 2) % 2 else (150, 112, 36))
+        a.kachel("patronen", gurt)
+        mu = Bild(16, 16)
+        mu.rechteck(0, 0, 16, 16, (34, 34, 38))
+        for cx, cy in ((8, 3), (8, 13), (3.5, 5.5), (12.5, 5.5), (3.5, 10.5), (12.5, 10.5)):
+            mu.ellipse(cx, cy, 1.8, 1.8, (8, 8, 8))
+        mu.ellipse(8, 8, 2, 2, (70, 70, 76))
+        a.kachel("muendung", mu)
+        a.kachel("lauf_dunkel", _rotations_streifen(f, 0.7))
+        bilder.append(a)
+    m = Modell(bilder[0], "items/waffenpack/minigun")
+    import math
+    # Sechs Laeufe um die Achse (y=8, z=8)
+    for i in range(6):
+        w = math.pi / 3 * i
+        cy, cz = 8 + 1.7 * math.cos(w), 8 + 1.7 * math.sin(w)
+        m.quader([11, cy - 0.65, cz - 0.65], [30, cy + 0.65, cz + 0.65], {"alle": "lauf", "east": "muendung"})
+    m.quader([11, 7.4, 7.4], [29, 8.6, 8.6], "lauf_dunkel")
+    for x0 in (15, 22, 28.5):
+        m.quader([x0, 5.4, 5.4], [x0 + 1.2, 10.6, 10.6], {"alle": "metall", "east": "muendung", "west": "muendung"})
+    # Motor, Gehaeuse, Tragegriff
+    m.quader([5, 5, 5], [11, 11, 11], "gehaeuse")
+    m.quader([-7, 4, 5.5], [5, 11, 10.5], "gehaeuse")
+    m.quader([-7.5, 4.5, 6], [-7, 10.5, 10], "metall")
+    m.quader([-3, 11, 7.5], [-2, 13, 8.5], "metall")
+    m.quader([4, 11, 7.5], [5, 13, 8.5], "metall")
+    m.quader([-3, 13, 7.3], [5, 14, 8.7], "griff")
+    # Griffe
+    m.quader([-5.5, -0.5, 7], [-3, 4.5, 9], "griff", ("z", -22.5, [-4.2, 4.5, 8]))
+    m.quader([7, 0.5, 7.2], [9, 5, 8.8], "griff")
+    # Munitionskasten mit Patronengurt
+    m.quader([-4, 0.5, 10.5], [4, 7.5, 15], "kasten")
+    m.quader([-1, 7.5, 9.8], [2.5, 8.5, 11.5], "patronen")
+    m.quader([0, 8.5, 9.2], [2.5, 9.5, 10.5], "patronen")
+    disp = {
+        "thirdperson_righthand": {"rotation": [0, 90, 0], "translation": [0, 3, 2], "scale": [0.55, 0.55, 0.55]},
+        "thirdperson_lefthand": {"rotation": [0, -90, 0], "translation": [0, 3, 2], "scale": [0.55, 0.55, 0.55]},
+        "firstperson_righthand": {"rotation": [0, 90, 0], "translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]},
+        "firstperson_lefthand": {"rotation": [0, -90, 0], "translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]},
+        "gui": {"rotation": [20, 30, 0], "translation": [0, 0, 0], "scale": [0.48, 0.48, 0.48]},
+        "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.35, 0.35, 0.35]},
+        "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.5, 0.5, 0.5]},
+    }
+    from grafik import animation
+    return animation([a.bild for a in bilder]), m.json(disp), {"animation": {"frametime": 1}}
+
+
+# ---------------------------------------------------------------------------
+# Orbital-TNT-Kanone: weisses Gehaeuse, leuchtender Energiekern, Satellitenschuessel
+# ---------------------------------------------------------------------------
+
+def orbital(frames=8):
+    import math
+    bilder = []
+    for f in range(frames):
+        puls = 0.5 + 0.5 * math.sin(2 * math.pi * f / frames)
+        a = Atlas()
+        w = kachel((228, 232, 236), 0.03, 1101)
+        for x in range(16):
+            w.set(x, 7, (40, 200, 255))
+            w.set(x, 8, (150, 230, 255))
+        for p in ((1, 1), (14, 1), (1, 14), (14, 14)):
+            w.set(*p, (160, 166, 172))
+        a.kachel("weiss", w)
+        kern = Bild(16, 16)
+        for y in range(16):
+            for x in range(16):
+                d = abs(x - 7.5) / 8 + abs(y - 7.5) / 8
+                kern.set(x, y, mix((20, 140, 255), (220, 250, 255), max(0, min(1, 1 - d + puls * 0.4))))
+        a.kachel("kern", kern)
+        a.kachel("dunkel", kachel((34, 38, 46), 0.05, 1102))
+        sp = Bild(16, 16)
+        for y in range(16):
+            for x in range(16):
+                sp.set(x, y, mix((30, 120, 200), (200, 250, 255), puls) if x % 4 < 2 else (40, 44, 52))
+        a.kachel("spule", sp)
+        a.kachel("griff", kachel((24, 26, 30), 0.08, 1103))
+        li = Bild(16, 16)
+        li.rechteck(0, 0, 16, 16, (30, 34, 40))
+        li.ellipse(8, 8, 6, 6, (255, 60, 60))
+        li.ellipse(8, 8, 3, 3, (255, 200, 200))
+        a.kachel("linse", li)
+        sch = kachel((210, 214, 220), 0.03, 1104)
+        for r in (2, 5):
+            for y in range(16):
+                for x in range(16):
+                    if abs(math.hypot(x - 7.5, y - 7.5) - r) < 0.5:
+                        sch.set(x, y, (150, 156, 164))
+        a.kachel("schirm", sch)
+        tnt = Bild(16, 16)
+        tnt.rechteck(0, 0, 16, 16, (180, 30, 26))
+        for x in range(16):
+            tnt.set(x, 5, (236, 232, 220))
+            tnt.set(x, 10, (236, 232, 220))
+        a.kachel("tnt", tnt)
+        bilder.append(a)
+    m = Modell(bilder[0], "items/waffenpack/orbital")
+    m.quader([-6, 5, 5.5], [14, 10, 10.5], "weiss")
+    m.quader([1, 4.4, 4.8], [8, 10.6, 11.2], {"alle": "kern", "up": "weiss", "down": "weiss"})
+    m.quader([14, 6.5, 7], [27, 8.5, 9], "dunkel")
+    for x0 in (16, 19.5, 23):
+        m.quader([x0, 5.6, 6.1], [x0 + 1.5, 9.4, 9.9], "spule")
+    m.quader([26.5, 5.8, 6.3], [28, 9.2, 9.7], {"alle": "kern"})
+    m.quader([-6.5, 4.5, 6], [-6, 10.5, 10], "dunkel")
+    # Zielfernrohr
+    m.quader([6, 10, 7.2], [13, 12, 8.8], {"alle": "dunkel", "east": "linse"})
+    # Satellitenschuessel mit Antenne
+    m.quader([-3, 10, 7.5], [-1, 12, 8.5], "dunkel")
+    m.quader([-5, 12, 5], [1, 13, 11], "schirm", ("z", 22.5, [-2, 12.5, 8]))
+    m.quader([-2.3, 13, 7.7], [-1.7, 16, 8.3], "spule")
+    # TNT-Magazin unten
+    m.quader([-2, 1.5, 6], [5, 5, 10], "tnt")
+    m.quader([-5, -1, 7], [-2.5, 5, 9], "griff", ("z", -22.5, [-3.7, 5, 8]))
+    disp = {
+        "thirdperson_righthand": {"rotation": [0, 90, 0], "translation": [0, 3, 2], "scale": [0.55, 0.55, 0.55]},
+        "thirdperson_lefthand": {"rotation": [0, -90, 0], "translation": [0, 3, 2], "scale": [0.55, 0.55, 0.55]},
+        "firstperson_righthand": {"rotation": [0, 90, 0], "translation": [0, 2.5, 0], "scale": [0.5, 0.5, 0.5]},
+        "firstperson_lefthand": {"rotation": [0, -90, 0], "translation": [0, 2.5, 0], "scale": [0.5, 0.5, 0.5]},
+        "gui": {"rotation": [20, 30, 0], "translation": [0, 0, 0], "scale": [0.5, 0.5, 0.5]},
+        "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.35, 0.35, 0.35]},
+        "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.5, 0.5, 0.5]},
+    }
+    from grafik import animation
+    return animation([a.bild for a in bilder]), m.json(disp), {"animation": {"frametime": 2}}
+
+
+# ---------------------------------------------------------------------------
+# Meteor: gluehender Felsbrocken (vom Ruestungsstaender auf dem Kopf getragen)
+# ---------------------------------------------------------------------------
+
+def meteor(frames=4):
+    import math
+    bilder = []
+    for f in range(frames):
+        a = Atlas()
+        r = random.Random(1201)
+        fels = Bild(16, 16)
+        for y in range(16):
+            for x in range(16):
+                fels.set(x, y, hell((52, 40, 36), 1 + r.uniform(-0.18, 0.18)))
+        glut = 0.6 + 0.4 * math.sin(2 * math.pi * f / frames)
+        for _ in range(4):
+            x, y = r.randrange(16), r.randrange(16)
+            for _ in range(7):
+                fels.set(x, y, mix((200, 60, 10), (255, 220, 80), glut * r.random()))
+                x = (x + r.choice((-1, 0, 1))) % 16
+                y = (y + r.choice((-1, 0, 1))) % 16
+        a.kachel("fels", fels)
+        lava = Bild(16, 16)
+        for y in range(16):
+            for x in range(16):
+                lava.set(x, y, mix((220, 70, 10), (255, 230, 120), (r.random() * 0.5 + 0.5 * glut)))
+        a.kachel("lava", lava)
+        bilder.append(a)
+    m = Modell(bilder[0], "items/waffenpack/meteor")
+    m.quader([-2, -2, -2], [18, 18, 18], "fels")
+    m.quader([0, -4, 0], [16, 20, 16], "fels", ("y", 45, [8, 8, 8]))
+    m.quader([0, 0, -4], [16, 16, 20], "lava", ("x", 45, [8, 8, 8]))
+    m.quader([-4, 0, 0], [20, 16, 16], "fels", ("z", 45, [8, 8, 8]))
+    disp = {"head": {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [4, 4, 4]},
+            "gui": {"rotation": [30, 45, 0], "translation": [0, 0, 0], "scale": [0.4, 0.4, 0.4]}}
+    from grafik import animation
+    return animation([a.bild for a in bilder]), m.json(disp), {"animation": {"frametime": 3}}

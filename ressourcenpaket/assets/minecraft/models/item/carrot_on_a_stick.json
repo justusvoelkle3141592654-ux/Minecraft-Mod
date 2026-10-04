@@ -13,6 +13,20 @@
     },
     {
       "predicate": {
+        "damaged": 0,
+        "damage": 0.07999
+      },
+      "model": "item/waffenpack/minigun"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.11999
+      },
+      "model": "item/waffenpack/orbital"
+    },
+    {
+      "predicate": {
         "damaged": 1,
         "damage": 0
       },

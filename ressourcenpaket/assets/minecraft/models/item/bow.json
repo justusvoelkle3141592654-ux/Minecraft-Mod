@@ -110,6 +110,72 @@
     },
     {
       "predicate": {
+        "damaged": 0,
+        "damage": 0.007803
+      },
+      "model": "item/waffenpack/schatten_0"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.007803,
+        "pulling": 1
+      },
+      "model": "item/waffenpack/schatten_1"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.007803,
+        "pulling": 1,
+        "pull": 0.65
+      },
+      "model": "item/waffenpack/schatten_2"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.007803,
+        "pulling": 1,
+        "pull": 0.9
+      },
+      "model": "item/waffenpack/schatten_3"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.010407
+      },
+      "model": "item/waffenpack/vernichter_0"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.010407,
+        "pulling": 1
+      },
+      "model": "item/waffenpack/vernichter_1"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.010407,
+        "pulling": 1,
+        "pull": 0.65
+      },
+      "model": "item/waffenpack/vernichter_2"
+    },
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.010407,
+        "pulling": 1,
+        "pull": 0.9
+      },
+      "model": "item/waffenpack/vernichter_3"
+    },
+    {
+      "predicate": {
         "damaged": 1,
         "damage": 0
       },

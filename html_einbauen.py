@@ -23,10 +23,10 @@ import sys
 
 import welt_bauen
 
-WELT = "Waffenpack-Welt-3"   # neuer Name, damit vorhandene Waffenpack-Welten erhalten bleiben
+WELT = "Waffenpack-Welt-4"   # neuer Name, damit vorhandene Waffenpack-Welten erhalten bleiben
 PAKET = "Waffenpack-Ressourcenpaket"
 DB = "_net_lax1dude_eaglercraft_v1_8_internal_PlatformFilesystem_1_12_2_"
-MERKER = "waffenpack_installiert_v3"
+MERKER = "waffenpack_installiert_v4"
 ANKER = '<script type="text/javascript">\n"use strict";\n(function(){\n\twindow.eaglercraftXOpts.assetsURI'
 
 SKRIPT = """<script type="text/javascript">

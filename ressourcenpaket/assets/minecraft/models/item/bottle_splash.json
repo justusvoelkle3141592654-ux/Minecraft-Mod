@@ -1,0 +1,7 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "items/waffenpack/granate_huelle",
+    "layer1": "items/waffenpack/granate_details"
+  }
+}

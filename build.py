@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Erzeugt alle Dateien des Waffenpacks fuer Minecraft 1.12 (Eaglercraft 1.12.x).
+"""Erzeugt das Ressourcenpaket und die Einzelbefehle des Waffenpacks (Minecraft 1.12 / Eaglercraft 1.12).
 
 Aufruf: python3 build.py
 
@@ -8,9 +8,8 @@ Erzeugt:
   Waffenpack-Ressourcenpaket.zip       Ressourcenpaket (ZIP zum Importieren)
   befehle/einzelbefehle.txt            Einzelne Chat-Befehle (je max. 256 Zeichen)
 
-Die fertige Welt (Waffenpack-Welt.zip) baut welt_bauen.py mit den Befehlen aus kette().
-
-Alle Werte stehen unten in EINSTELLUNGEN und koennen dort geaendert werden.
+Items und Waffen-Logik stehen in waffen.py, die Backrooms in backrooms.py.
+Die fertige Welt (Waffenpack-Welt.zip) baut welt_bauen.py.
 """
 
 import json
@@ -22,176 +21,10 @@ import zlib
 
 import grafik
 import modelle
+import waffen
+from waffen import BOGEN, RUTE, HACKE, SCHWERT_DAMAGE, nbt_string  # noqa: F401 (nbt_string fuer welt_bauen)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-
-# ---------------------------------------------------------------------------
-# EINSTELLUNGEN
-# ---------------------------------------------------------------------------
-
-# Minecraft 1.12 begrenzt den Angriffsschaden-Attributwert auf 2048.
-# Grundschaden des Spielers ist 1, daher 2047 -> Gesamtschaden 2048.
-SCHWERT_ATTRIBUT_BONUS = 2047
-
-# Grundschaden der Pfeile aus Pistole und Bazooka (Vanilla-Pfeil: 2).
-# Der tatsaechliche Schaden ist Grundschaden x Pfeilgeschwindigkeit (max. ca. 3).
-PFEIL_SCHADEN = 2048
-
-# Verzauberungsstufen werden in 1.12 als "short" gespeichert: Maximum 32767.
-MAX_STUFE = 32767
-
-# Verzauberungs-IDs aus Minecraft 1.12
-PROTECTION = 0        # Schutz
-FEATHER_FALLING = 2   # Federfall
-SHARPNESS = 16        # Schaerfe
-EFFICIENCY = 32       # Effizienz
-
-RUESTUNG_SCHUTZ = 1000
-FEDERFALL = 32000
-SCHWERT_STUFE20_VERZAUBERUNG = SHARPNESS   # Annahme, siehe README
-SCHWERT_STUFE20_STUFE = 20
-SPITZHACKE_EFFIZIENZ = min(727000, MAX_STUFE)
-
-GOLDAEPFEL_ANZAHL = 64
-ENDERPERLEN_ANZAHL = 16
-PFEILE_ANZAHL = 64
-
-# Schadenswert (Metadaten), ueber den das Ressourcenpaket die eigenen Modelle zeigt
-PISTOLE_DAMAGE = 1   # Bogen
-BAZOOKA_DAMAGE = 2   # Bogen
-SCHWERT_DAMAGE = 1   # Diamantschwert
-
-LAMPE_DAMAGE = 1     # Karottenrute
-KAROTTENRUTE_HALTBARKEIT = 25
-BOGEN_HALTBARKEIT = 384
-DIAMANTSCHWERT_HALTBARKEIT = 1561
-
-# ---------------------------------------------------------------------------
-# Items (NBT im Format von Minecraft 1.12, ohne Anfuehrungszeichen)
-# ---------------------------------------------------------------------------
-
-
-def ench(*paare):
-    return "ench:[" + ",".join("{id:%ds,lvl:%ds}" % p for p in paare) + "]"
-
-
-# (item, anzahl, damage, tag)
-LAMPE = ("carrot_on_a_stick", 1, LAMPE_DAMAGE, "{Unbreakable:1b,br:1b,display:{Name:Taschenlampe}}")
-
-ITEMS = [
-    ("bow", 1, PISTOLE_DAMAGE, "{Unbreakable:1b,wp:1b,display:{Name:Pistole}}"),
-    ("bow", 1, BAZOOKA_DAMAGE, "{Unbreakable:1b,wp:2b,display:{Name:Bazooka}}"),
-    ("diamond_sword", 1, SCHWERT_DAMAGE,
-     "{Unbreakable:1b,display:{Name:Schwert},AttributeModifiers:[{AttributeName:generic.attackDamage,"
-     "Name:wp,Amount:%dd,Operation:0,UUIDLeast:1L,UUIDMost:1L,Slot:mainhand}]}" % SCHWERT_ATTRIBUT_BONUS),
-    LAMPE,
-    ("tnt", 64, 0, "{display:{Name:Sonder-TNT}}"),
-    ("flint_and_steel", 1, 0, "{Unbreakable:1b}"),
-    ("arrow", PFEILE_ANZAHL, 0, None),
-    ("golden_apple", GOLDAEPFEL_ANZAHL, 1, None),
-    ("ender_pearl", ENDERPERLEN_ANZAHL, 0, None),
-    ("diamond_helmet", 1, 0, "{%s}" % ench((PROTECTION, RUESTUNG_SCHUTZ))),
-    ("diamond_chestplate", 1, 0, "{%s}" % ench((PROTECTION, RUESTUNG_SCHUTZ))),
-    ("diamond_leggings", 1, 0, "{%s}" % ench((PROTECTION, RUESTUNG_SCHUTZ))),
-    ("diamond_boots", 1, 0, "{%s}" % ench((PROTECTION, RUESTUNG_SCHUTZ), (FEATHER_FALLING, FEDERFALL))),
-    ("diamond_sword", 1, 0, "{%s}" % ench((SCHWERT_STUFE20_VERZAUBERUNG, SCHWERT_STUFE20_STUFE))),
-    ("diamond_pickaxe", 1, 0, "{%s}" % ench((EFFICIENCY, SPITZHACKE_EFFIZIENZ))),
-]
-
-
-def give(ziel, item, anzahl, damage, tag):
-    cmd = "give %s %s %d %d" % (ziel, item, anzahl, damage)
-    return cmd + " " + tag if tag else cmd
-
-
-# ---------------------------------------------------------------------------
-# Pistole / Bazooka: Befehle, die jeden Tick laufen
-# ---------------------------------------------------------------------------
-
-# Rakete der Bazooka: unsichtbarer Ruestungsstaender, der das Raketenmodell
-# (Diamanthacke mit Schadenswert RAKETE_DAMAGE) auf dem Kopf traegt und jeden
-# Tick zum Bazooka-Pfeil versetzt wird. Die Neigung wird beim Abschuss aus der
-# Blickrichtung des Spielers gewaehlt (7 Stufen), die Drehung vom Spieler kopiert.
-RAKETE_DAMAGE = 10   # Diamanthacke
-DIAMANTHACKE_HALTBARKEIT = 1561
-RAKETE_KOPF_Y = 1.6  # Kopfhoehe ueber den Fuessen des Ruestungsstaenders
-MAX_FLUGZEIT = 160   # Ticks (8 Sekunden)
-
-NEIGUNGEN = [(-90, -60, -75), (-60, -30, -45), (-30, -10, -20), (-10, 10, 0),
-             (10, 30, 20), (30, 60, 45), (60, 90, 75)]
-
-RAKETE_NBT = ("{Invisible:1b,Marker:1b,NoGravity:1b,Invulnerable:1b,Tags:[wp_r,wp_rn],"
-              "ArmorItems:[{},{},{},{id:\"minecraft:diamond_hoe\",Count:1b,Damage:%ds,tag:{Unbreakable:1b}}],"
-              "Pose:{Head:[%%.1ff,0f,0f]}}" % RAKETE_DAMAGE)
-
-TICK = [
-    # Wer haelt gerade Pistole oder Bazooka?
-    "scoreboard players tag @a remove wp_p",
-    "scoreboard players tag @a remove wp_b",
-    "scoreboard players tag @a add wp_p {SelectedItem:{tag:{wp:1b}}}",
-    "scoreboard players tag @a add wp_b {SelectedItem:{tag:{wp:2b}}}",
-    # Neue Pfeile in der Naehe dieser Spieler markieren (wp_pn / wp_bn = gerade abgefeuert)
-    "execute @a[tag=wp_p] ~ ~ ~ scoreboard players tag @e[type=arrow,r=6,tag=!wp_alt] add wp_pn",
-    "execute @a[tag=wp_b] ~ ~ ~ scoreboard players tag @e[type=arrow,r=6,tag=!wp_alt] add wp_bn",
-    "scoreboard players tag @e[type=arrow] add wp_alt",
-    # Pistole: Knall und Muendungsfeuer beim Schuss
-    "execute @e[tag=wp_pn] ~ ~ ~ playsound entity.generic.explode master @a ~ ~ ~ 0.6 2",
-    "execute @e[tag=wp_pn] ~ ~ ~ particle flame ~ ~ ~ 0.1 0.1 0.1 0.05 15 force",
-    "scoreboard players tag @e[tag=wp_pn] add wp_p",
-    "scoreboard players tag @e[tag=wp_p] remove wp_pn",
-    # Bazooka: Rakete erzeugen, Rauch beim Abschuss
-] + [
-    "execute @e[tag=wp_bn] ~ ~ ~ execute @p[tag=wp_b,rxm=%d,rx=%d] ~ ~ ~ summon armor_stand ~ ~ ~ %s"
-    % (von, bis, RAKETE_NBT % neigung) for von, bis, neigung in NEIGUNGEN
-] + [
-    "execute @e[tag=wp_rn] ~ ~ ~ tp @s @p[tag=wp_b]",
-    "scoreboard players tag @e[tag=wp_rn] remove wp_rn",
-    "execute @e[tag=wp_bn] ~ ~ ~ playsound entity.firework.launch master @a ~ ~ ~ 2 0.5",
-    "execute @e[tag=wp_bn] ~ ~ ~ particle smoke ~ ~ ~ 0.2 0.2 0.2 0.02 10 force",
-    "scoreboard players tag @e[tag=wp_bn] add wp_b",
-    "scoreboard players tag @e[tag=wp_b] remove wp_bn",
-    # Schaden erhoehen
-    "entitydata @e[type=arrow,tag=wp_p] {damage:%dd}" % PFEIL_SCHADEN,
-    "entitydata @e[type=arrow,tag=wp_b] {damage:%dd}" % PFEIL_SCHADEN,
-    # Pistole: Funkenspur, Kugel verschwindet beim Einschlag in einer Rauchwolke
-    "execute @e[type=arrow,tag=wp_p] ~ ~ ~ particle crit ~ ~ ~ 0 0 0 0 2 force",
-    "scoreboard players tag @e[type=arrow,tag=wp_p] add wp_pweg {inGround:1b}",
-    "execute @e[tag=wp_pweg] ~ ~ ~ particle smoke ~ ~ ~ 0.1 0.1 0.1 0.02 10 force",
-    "kill @e[tag=wp_pweg]",
-    # Bazooka-Pfeil im Boden: Explosion, Rakete und Pfeil entfernen
-    "scoreboard players tag @e[type=arrow,tag=wp_b] add wp_boom {inGround:1b}",
-    "execute @e[tag=wp_boom] ~ ~ ~ summon tnt ~ ~ ~ {Fuse:0}",
-    "execute @e[tag=wp_boom] ~ ~ ~ particle hugeexplosion ~ ~ ~ 1 1 1 0 3 force",
-    "execute @e[tag=wp_boom] ~ ~ ~ kill @e[tag=wp_r,c=1,r=6]",
-    "kill @e[tag=wp_boom]",
-    # Rakete fliegt mit dem Pfeil, Feuer- und Rauchspur. "teleport" statt "tp":
-    # bei tp waeren ~ ~ ~ relativ zur Rakete selbst, bei teleport relativ zum Pfeil.
-    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ teleport @e[tag=wp_r,c=1] ~ ~-%.1f ~" % RAKETE_KOPF_Y,
-    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ particle flame ~ ~ ~ 0.15 0.15 0.15 0.01 4 force",
-    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ particle smoke ~ ~ ~ 0.15 0.15 0.15 0.01 3 force",
-    # Rakete ohne Pfeil (Pfeil hat ein Lebewesen getroffen): dort explodieren
-    "scoreboard players tag @e[tag=wp_r] add wp_rlos",
-    "execute @e[type=arrow,tag=wp_b] ~ ~ ~ scoreboard players tag @e[tag=wp_r,r=4] remove wp_rlos",
-    "execute @e[tag=wp_rlos] ~ ~%.1f ~ summon tnt ~ ~ ~ {Fuse:0}" % RAKETE_KOPF_Y,
-    "kill @e[tag=wp_rlos]",
-    # Aufraeumen: Geschosse, die laenger als MAX_FLUGZEIT Ticks fliegen, verschwinden.
-    # (In Eaglercraft bewegen sich Objekte am Rand der Sichtweite nicht; sie blieben sonst
-    # in der Luft haengen.) Das Ziel wp_alter legt welt_bauen.py an.
-    "scoreboard players add @e[tag=wp_r] wp_alter 1",
-    "scoreboard players add @e[type=arrow,tag=wp_b] wp_alter 1",
-    "scoreboard players add @e[type=arrow,tag=wp_p] wp_alter 1",
-    "execute @e[score_wp_alter_min=%d] ~ ~ ~ particle cloud ~ ~ ~ 0.3 0.3 0.3 0.02 10 force" % MAX_FLUGZEIT,
-    "kill @e[score_wp_alter_min=%d]" % MAX_FLUGZEIT,
-]
-
-
-# ---------------------------------------------------------------------------
-# Ausgabe: Funktionen, Befehle
-# ---------------------------------------------------------------------------
-
-
-def nbt_string(s):
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def schreibe(pfad, text):
@@ -201,27 +34,8 @@ def schreibe(pfad, text):
         f.write(text)
 
 
-def kette():
-    """Befehle der Befehlsblock-Kette in der Welt (1 Wiederhol-Block, dann Ketten-Bloecke).
-
-    Neue Spieler (ohne Markierung wp_hat) bekommen einmal alle Items,
-    danach folgt die Logik fuer Pistole und Bazooka.
-    """
-    befehle = ["scoreboard players tag @a[tag=!wp_hat] add wp_neu"]
-    befehle += [give("@a[tag=wp_neu]", *i) for i in ITEMS]
-    befehle += [
-        "tellraw @a[tag=wp_neu] " + json.dumps(
-            [{"text": "Willkommen! ", "color": "gold", "bold": True},
-             {"text": "Tippe ", "color": "white"}, {"text": "/start", "color": "yellow", "bold": True},
-             {"text": ", um die Backrooms zu betreten.", "color": "white"}], ensure_ascii=False),
-        "scoreboard players tag @a[tag=wp_neu] add wp_hat",
-        "scoreboard players tag @a[tag=wp_neu] remove wp_neu",
-    ]
-    return befehle + TICK
-
-
 def einzelbefehle():
-    zeilen = ["/" + give("@p", *i) for i in ITEMS]
+    zeilen = waffen.einzelbefehle()
     for z in zeilen:
         assert len(z) <= 256, "Chat-Befehl zu lang (%d Zeichen): %s" % (len(z), z)
     schreibe("befehle/einzelbefehle.txt", "\n".join(zeilen) + "\n")
@@ -350,6 +164,15 @@ def unter(damage, haltbarkeit):
     return round(damage / haltbarkeit - 0.00001, 6)
 
 
+BOGEN_ANZEIGE = {
+    "thirdperson_righthand": {"rotation": [-80, 260, -40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
+    "thirdperson_lefthand": {"rotation": [-80, -280, 40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
+    "firstperson_righthand": {"rotation": [0, -90, 25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
+    "firstperson_lefthand": {"rotation": [0, 90, -25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
+}
+UNSICHTBAR = {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [0, 0, 0]}
+
+
 def ressourcenpaket():
     rp = os.path.join(ROOT, "ressourcenpaket")
     if os.path.isdir(rp):
@@ -359,6 +182,7 @@ def ressourcenpaket():
 
     tex = os.path.join(rp, "assets/minecraft/textures/items/waffenpack")
     mod = os.path.join(rp, "assets/minecraft/models/item")
+    W = waffen
     png(os.path.join(tex, "schwert.png"), SCHWERT)
     json_datei(os.path.join(mod, "waffenpack", "schwert.json"),
                {"parent": "item/handheld", "textures": {"layer0": "items/waffenpack/schwert"}})
@@ -370,23 +194,28 @@ def ressourcenpaket():
         atlas, modell = funktion()
         atlas.bild.speichern(os.path.join(tex, datei + ".png"))
         json_datei(os.path.join(mod, "waffenpack", name + ".json"), modell)
-    json_datei(os.path.join(mod, "carrot_on_a_stick.json"), {
-        "parent": "item/handheld_rod",
-        "textures": {"layer0": "items/carrot_on_a_stick"},
-        "overrides": [
-            {"predicate": {"damaged": 0, "damage": unter(LAMPE_DAMAGE, KAROTTENRUTE_HALTBARKEIT)}, "model": "item/waffenpack/taschenlampe"},
-            {"predicate": {"damaged": 1, "damage": 0}, "model": "item/carrot_on_a_stick"},
-        ],
-    })
+    for name, funktion in (("minigun", modelle.minigun), ("orbital", modelle.orbital),
+                           ("meteor", modelle.meteor)):
+        streifen, modell, meta = funktion()
+        streifen.speichern(os.path.join(tex, name + ".png"))
+        json_datei(os.path.join(tex, name + ".png.mcmeta"), meta)
+        json_datei(os.path.join(mod, "waffenpack", name + ".json"), modell)
 
-    # Monster (je zwei Animationsbilder)
-    hacke = [{"predicate": {"damaged": 0, "damage": unter(RAKETE_DAMAGE, DIAMANTHACKE_HALTBARKEIT)}, "model": "item/waffenpack/rakete"}]
+    rute = [{"predicate": {"damaged": 0, "damage": unter(RUTE[n], W.KAROTTENRUTE_HALTBARKEIT)},
+             "model": "item/waffenpack/" + n} for n in ("taschenlampe", "minigun", "orbital")]
+    rute.append({"predicate": {"damaged": 1, "damage": 0}, "model": "item/carrot_on_a_stick"})
+    json_datei(os.path.join(mod, "carrot_on_a_stick.json"), {
+        "parent": "item/handheld_rod", "textures": {"layer0": "items/carrot_on_a_stick"}, "overrides": rute})
+
+    # Monster (je zwei Animationsbilder), Rakete, Meteor
+    hacke = [{"predicate": {"damaged": 0, "damage": unter(HACKE[n], W.DIAMANTHACKE_HALTBARKEIT)},
+              "model": "item/waffenpack/" + n} for n in ("rakete", "meteor")]
     for name, (atlas_f, modell_f) in modelle.MONSTER.items():
         atlas = atlas_f()
         atlas.bild.speichern(os.path.join(tex, name + ".png"))
         for bild, dmg in zip(("a", "b"), modelle.MONSTER_DAMAGE[name]):
             json_datei(os.path.join(mod, "waffenpack", "%s_%s.json" % (name, bild)), modell_f(atlas, bild))
-            hacke.append({"predicate": {"damaged": 0, "damage": unter(dmg, DIAMANTHACKE_HALTBARKEIT)},
+            hacke.append({"predicate": {"damaged": 0, "damage": unter(dmg, W.DIAMANTHACKE_HALTBARKEIT)},
                           "model": "item/waffenpack/%s_%s" % (name, bild)})
     hacke.sort(key=lambda o: o["predicate"]["damage"])
     hacke.append({"predicate": {"damaged": 1, "damage": 0}, "model": "item/diamond_hoe"})
@@ -399,38 +228,47 @@ def ressourcenpaket():
         streifen.speichern(os.path.join(btex, name + ".png"))
         json_datei(os.path.join(btex, name + ".png.mcmeta"), meta)
 
-    # Vanilla-Modell des Bogens (1.12.2) plus eigene Eintraege.
-    # Es gilt der letzte passende Eintrag. "damaged": 0 trifft nur auf unzerbrechliche
-    # oder unbeschaedigte Boegen zu; beschaedigte normale Boegen bleiben normal.
-    bogen_ziehen = [
-        ({"pulling": 1}, "item/bow_pulling_0"),
-        ({"pulling": 1, "pull": 0.65}, "item/bow_pulling_1"),
-        ({"pulling": 1, "pull": 0.9}, "item/bow_pulling_2"),
-    ]
-    overrides = [{"predicate": p, "model": m} for p, m in bogen_ziehen]
-    overrides += [
-        {"predicate": {"damaged": 0, "damage": unter(PISTOLE_DAMAGE, BOGEN_HALTBARKEIT)}, "model": "item/waffenpack/pistole"},
-        {"predicate": {"damaged": 0, "damage": unter(BAZOOKA_DAMAGE, BOGEN_HALTBARKEIT)}, "model": "item/waffenpack/bazooka"},
-        {"predicate": {"damaged": 1, "damage": 0}, "model": "item/bow"},
-    ]
-    overrides += [{"predicate": dict({"damaged": 1}, **p), "model": m} for p, m in bogen_ziehen]
+    # Boegen: Schatten-Bogen und Vernichtungs-Bogen (je Ruhe + 3 Spannstufen, animiert)
+    for stil in ("schatten", "vernichter"):
+        for zustand in range(4):
+            datei = "%s_%d" % (stil, zustand)
+            grafik.bogen_animation(stil, zustand).speichern(os.path.join(tex, datei + ".png"))
+            json_datei(os.path.join(tex, datei + ".png.mcmeta"), {"animation": {"frametime": 3}})
+            json_datei(os.path.join(mod, "waffenpack", datei + ".json"),
+                       {"parent": "item/generated", "textures": {"layer0": "items/waffenpack/" + datei},
+                        "display": BOGEN_ANZEIGE})
+
+    # Vanilla-Modell des Bogens (1.12.2) plus eigene Eintraege. Es gilt der letzte
+    # passende Eintrag. "damaged": 0 trifft nur auf unzerbrechliche oder unbeschaedigte
+    # Boegen zu; beschaedigte normale Boegen bleiben normal.
+    def ziehen(modell_basis, extra):
+        return [
+            {"predicate": dict(extra, pulling=1), "model": modell_basis % 0},
+            {"predicate": dict(extra, pulling=1, pull=0.65), "model": modell_basis % 1},
+            {"predicate": dict(extra, pulling=1, pull=0.9), "model": modell_basis % 2},
+        ]
+    overrides = ziehen("item/bow_pulling_%d", {})
+    for name in ("pistole", "bazooka"):
+        overrides.append({"predicate": {"damaged": 0, "damage": unter(BOGEN[name], W.BOGEN_HALTBARKEIT)},
+                          "model": "item/waffenpack/" + name})
+    for stil in ("schatten", "vernichter"):
+        bed = {"damaged": 0, "damage": unter(BOGEN[stil], W.BOGEN_HALTBARKEIT)}
+        overrides.append({"predicate": dict(bed), "model": "item/waffenpack/%s_0" % stil})
+        for o in ziehen("item/waffenpack/" + stil + "_%d", bed):
+            o["model"] = o["model"][:-1] + str(int(o["model"][-1]) + 1)
+            overrides.append(o)
+    overrides.append({"predicate": {"damaged": 1, "damage": 0}, "model": "item/bow"})
+    overrides += ziehen("item/bow_pulling_%d", {"damaged": 1})
     json_datei(os.path.join(mod, "bow.json"), {
-        "parent": "item/generated",
-        "textures": {"layer0": "items/bow_standby"},
-        "display": {
-            "thirdperson_righthand": {"rotation": [-80, 260, -40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
-            "thirdperson_lefthand": {"rotation": [-80, -280, 40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
-            "firstperson_righthand": {"rotation": [0, -90, 25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
-            "firstperson_lefthand": {"rotation": [0, 90, -25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
-        },
-        "overrides": overrides,
-    })
+        "parent": "item/generated", "textures": {"layer0": "items/bow_standby"},
+        "display": BOGEN_ANZEIGE, "overrides": overrides})
 
     json_datei(os.path.join(mod, "diamond_sword.json"), {
         "parent": "item/handheld",
         "textures": {"layer0": "items/diamond_sword"},
         "overrides": [
-            {"predicate": {"damaged": 0, "damage": unter(SCHWERT_DAMAGE, DIAMANTSCHWERT_HALTBARKEIT)}, "model": "item/waffenpack/schwert"},
+            {"predicate": {"damaged": 0, "damage": unter(SCHWERT_DAMAGE, W.DIAMANTSCHWERT_HALTBARKEIT)},
+             "model": "item/waffenpack/schwert"},
             {"predicate": {"damaged": 1, "damage": 0}, "model": "item/diamond_sword"},
         ],
     })
@@ -442,6 +280,18 @@ def ressourcenpaket():
         "textures": {"layer0": "items/diamond_hoe"},
         "overrides": hacke,
     })
+
+    # Werf-TNT: Wurftraenke sehen wie Dynamitbuendel aus (Farbe = Trankfarbe)
+    grafik.granate_huelle().speichern(os.path.join(tex, "granate_huelle.png"))
+    grafik.granate_details().speichern(os.path.join(tex, "granate_details.png"))
+    json_datei(os.path.join(mod, "bottle_splash.json"), {
+        "parent": "item/generated",
+        "textures": {"layer0": "items/waffenpack/granate_huelle", "layer1": "items/waffenpack/granate_details"}})
+    # Munition der Minigun liegt in der zweiten Hand: dort unsichtbar
+    json_datei(os.path.join(mod, "snowball.json"), {
+        "parent": "item/generated", "textures": {"layer0": "items/snowball"},
+        "display": {"thirdperson_lefthand": UNSICHTBAR, "firstperson_lefthand": UNSICHTBAR,
+                    "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.22, 0.22, 0.22]}}})
     png(os.path.join(rp, "assets/minecraft/textures/entity/projectiles/arrow.png"), KUGEL_TEXTUR)
 
     # ZIP: pack.mcmeta muss direkt im Hauptverzeichnis liegen

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Baut Waffenpack-Welt.zip: eine Minecraft-1.12.2-Welt mit eingebauter Befehlsblock-Kette.
+"""Baut Waffenpack-Welt.zip: eine Minecraft-1.12.2-Welt mit eingebauten Befehlsblock-Ketten.
 
 Aufruf: python3 welt_bauen.py <pfad/zu/minecraft_server.1.12.2.jar>
 
 Die Welt wird mit dem originalen 1.12.2-Server erzeugt. Unter dem Spawnpunkt
-(Hoehe 10) entsteht die Kette aus build.kette(): neue Spieler bekommen einmal
-alle Items, danach laufen Pistole und Bazooka. Cheats sind eingeschaltet,
-Spielmodus Ueberleben.
+(Hoehe 10) entstehen die Ketten aus waffen.py und backrooms.py (der Spawnbereich
+bleibt immer geladen). Die Backrooms liegen weit weg (orte.py); zum Bauen wird der
+Spawnpunkt voruebergehend dorthin gelegt, damit der Server den Bereich laedt.
+Cheats sind eingeschaltet, Spielmodus Ueberleben.
 """
 
 import gzip
@@ -23,6 +24,8 @@ import zipfile
 
 import backrooms
 import build
+import orte
+import waffen
 
 WELTNAME = "Waffenpack"
 KETTE_Y = 10
@@ -146,6 +149,49 @@ class Server:
         self.p.wait(120)
 
 
+KETTE_BREITE = 100   # Befehlsbloecke je Reihe (Schlangenlinie, bleibt im Spawnbereich)
+
+
+def ketten_lage(ketten, x0, z0):
+    """Positionen und Blickrichtungen aller Befehlsbloecke: jede Kette in Schlangenlinie
+    (Reihen abwechselnd nach Osten und Westen), zwischen zwei Ketten eine freie Reihe."""
+    lage = []
+    z = z0
+    for befehle in ketten:
+        eintraege = []
+        for i, cmd in enumerate(befehle):
+            reihe, pos = divmod(i, KETTE_BREITE)
+            ost = reihe % 2 == 0
+            x = x0 + pos if ost else x0 + KETTE_BREITE - 1 - pos
+            letzte_in_reihe = pos == KETTE_BREITE - 1
+            richtung = 3 if letzte_in_reihe else (5 if ost else 4)
+            eintraege.append((x, z + reihe, richtung, cmd, i == 0))
+        lage.append(eintraege)
+        z += (len(befehle) - 1) // KETTE_BREITE + 2
+    return lage, z
+
+
+def oberflaeche(s, x, z):
+    for y in range(140, 40, -1):
+        n = s.befehl("testforblock %d %d %d air" % (x, y, z), 0.15)
+        if any("is " in zeile and "expected" in zeile for zeile in s.log[n:]):
+            return y + 1
+    return None
+
+
+def setze_spawn(welt, x, y, z):
+    name, wurzel = lade_nbt(os.path.join(welt, "level.dat"))
+    daten = wurzel["Data"][1]
+    daten["SpawnX"], daten["SpawnY"], daten["SpawnZ"] = (3, x), (3, y), (3, z)
+    speichere_nbt(os.path.join(welt, "level.dat"), name, wurzel)
+
+
+def fehler_seit(s, n):
+    return [z for z in s.log[n:] if "outside of the world" in z or "Unknown" in z or "Invalid" in z
+            or "Couldn't" in z or "cannot" in z.lower() or "Data tag parsing failed" in z
+            or "Too many blocks" in z]
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -155,7 +201,7 @@ def main():
         f.write("eula=true\n")
     with open(os.path.join(arbeit, "server.properties"), "w") as f:
         f.write("online-mode=false\nlevel-name=%s\nlevel-type=DEFAULT\nserver-port=25590\n"
-                "gamemode=0\nenable-command-block=true\nspawn-protection=0\n" % WELTNAME)
+                "gamemode=0\nenable-command-block=true\nspawn-protection=0\nmax-tick-time=-1\n" % WELTNAME)
     welt = os.path.join(arbeit, WELTNAME)
 
     # 1. Welt erzeugen, Spawnpunkt lesen, Oberflaeche am Spawnpunkt suchen (Ziel fuer
@@ -165,15 +211,10 @@ def main():
         s.stop()
         _, wurzel = lade_nbt(os.path.join(welt, "level.dat"))
         daten = wurzel["Data"][1]
-        x, z = daten["SpawnX"][1], daten["SpawnZ"][1]
+        x, y_spawn, z = daten["SpawnX"][1], daten["SpawnY"][1], daten["SpawnZ"][1]
         print("Spawnpunkt:", x, z)
         s = Server(jar, arbeit)
-        oben = None
-        for y in range(140, 50, -1):
-            n = s.befehl("testforblock %d %d %d air" % (x, y, z), 0.15)
-            if any("is " in zeile and "expected" in zeile for zeile in s.log[n:]):
-                oben = y + 1
-                break
+        oben = oberflaeche(s, x, z)
         if oben is None:
             sys.exit("Oberflaeche nicht gefunden")
         n = s.befehl("testforblock %d %d %d water" % (x, oben - 1, z), 1)
@@ -187,42 +228,54 @@ def main():
     print("Oberflaeche:", oben)
     geo = backrooms.Geo(x, z, oben)
 
-    # 2. Backrooms bauen
+    # 2. Spielregeln, Ziele, Befehlsketten unter dem Spawnpunkt (Hoehe 10)
     # logAdminCommands aus: sonst schreibt der Server jede Befehlsblock-Ausgabe ins
     # Protokoll (in Eaglercraft in die Browser-Konsole, das kostet Leistung).
-    for cmd in ["gamerule commandBlockOutput false", "gamerule logAdminCommands false", "gamerule keepInventory true",
-                "scoreboard objectives add wp_alter dummy"] + backrooms.objectives():
+    for cmd in (["gamerule commandBlockOutput false", "gamerule logAdminCommands false",
+                 "gamerule keepInventory true"] + waffen.objectives() + backrooms.objectives()):
         s.befehl(cmd)
-    bau = backrooms.bau_befehle(geo)
-    fehler_vorher = len(s.log)
-    for cmd in bau:
-        s.befehl(cmd, 0)
+    ketten = waffen.ketten() + backrooms.ketten(geo)
+    lage, z_ende = ketten_lage(ketten, x - KETTE_BREITE // 2, z + 2)
+    if z_ende > z + 120:
+        sys.exit("Befehlsketten reichen ueber den Spawnbereich hinaus")
+    s.befehl("fill %d %d %d %d %d %d stone" % (x - KETTE_BREITE // 2 - 1, KETTE_Y - 1, z + 1,
+                                               x + KETTE_BREITE // 2, KETTE_Y + 1, z_ende), 0.5)
+    vorher = len(s.log)
+    gesamt = 0
+    for eintraege in lage:
+        for (bx, bz, richtung, cmd, kopf) in eintraege:
+            block = "repeating_command_block" if kopf else "chain_command_block"
+            s.befehl("setblock %d %d %d %s %d replace {auto:1b,Command:%s}"
+                     % (bx, KETTE_Y, bz, block, richtung, build.nbt_string(cmd)), 0)
+        gesamt += len(eintraege)
+    s.befehl("summon armor_stand %d %d %d {Marker:1b,Invisible:1b,NoGravity:1b,Tags:[br_state,wp_sys]}" % geo.zustand)
+    time.sleep(3)
+    fehler = fehler_seit(s, vorher)
+    if fehler:
+        print("\n".join(fehler[:10]))
+        sys.exit("Fehler beim Bau der Befehlsketten")
+    for eintraege in lage:
+        bx, bz = eintraege[-1][0], eintraege[-1][1]
+        n = s.befehl("testforblock %d %d %d chain_command_block" % (bx, KETTE_Y, bz), 1)
+        if not any("Successfully found" in zeile for zeile in s.log[n:]):
+            sys.exit("Kette wurde nicht vollstaendig gebaut")
+    s.stop()
+
+    # 3. Backrooms: Spawnpunkt voruebergehend dorthin legen, damit der Server den
+    #    Bereich beim Start laedt, dann bauen
+    setze_spawn(welt, orte.BRX, 100, orte.BRZ)
+    s = Server(jar, arbeit)
+    vorher = len(s.log)
+    for i, cmd in enumerate(backrooms.bau_befehle(geo) + backrooms.marken_befehle(geo)):
+        s.befehl(cmd, 0.05 if i % 20 == 0 else 0)
     s.befehl("say BAU_FERTIG", 0)
-    s.warte("BAU_FERTIG", 600)
-    fehler = [z for z in s.log[fehler_vorher:] if "outside of the world" in z or "Unknown" in z or "Invalid" in z
-              or "Couldn't" in z or "cannot" in z.lower()]
+    s.warte("BAU_FERTIG", 900)
+    fehler = fehler_seit(s, vorher)
     if fehler:
         print("\n".join(fehler[:10]))
         sys.exit("Fehler beim Bau der Backrooms")
-
-    # 3. Befehlsketten unter dem Spawnpunkt (je Reihe ein Wiederhol-Block, Richtung Osten)
-    reihen = [build.kette()] + backrooms.ketten(geo)
-    gesamt = 0
-    for r, befehle in enumerate(reihen):
-        zr = z + 2 * r
-        s.befehl("fill %d %d %d %d %d %d stone" % (x - 1, KETTE_Y - 1, zr - 1, x + len(befehle), KETTE_Y + 1, zr + 1), 0.3)
-        for i, cmd in enumerate(befehle):
-            block = "repeating_command_block" if i == 0 else "chain_command_block"
-            s.befehl("setblock %d %d %d %s 5 replace {auto:1b,Command:%s}"
-                     % (x + i, KETTE_Y, zr, block, build.nbt_string(cmd)), 0)
-        gesamt += len(befehle)
-    s.befehl("summon armor_stand %d %d %d {Marker:1b,Invisible:1b,NoGravity:1b,Tags:[br_state]}" % geo.zustand)
-    time.sleep(2)
-    for r, befehle in enumerate(reihen):
-        n = s.befehl("testforblock %d %d %d chain_command_block" % (x + len(befehle) - 1, KETTE_Y, z + 2 * r), 1)
-        if not any("Successfully found" in zeile for zeile in s.log[n:]):
-            sys.exit("Kette %d wurde nicht vollstaendig gebaut" % r)
     s.stop()
+    setze_spawn(welt, x, y_spawn, z)
 
     # 4. level.dat: Cheats an, Ueberleben
     name, wurzel = lade_nbt(os.path.join(welt, "level.dat"))
@@ -248,7 +301,7 @@ def main():
                 voll = os.path.join(ordner, d)
                 zf.write(voll, os.path.relpath(voll, arbeit).replace(os.sep, "/"))
     shutil.rmtree(arbeit)
-    print("Fertig:", ziel, "(%d Befehlsbloecke in %d Reihen)" % (gesamt, len(reihen)))
+    print("Fertig:", ziel, "(%d Befehlsbloecke in %d Ketten)" % (gesamt, len(ketten)))
 
 
 if __name__ == "__main__":
