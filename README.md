@@ -111,7 +111,13 @@ Die Welt startet im Überlebensmodus, Cheats sind an. Kreativmodus: `/gamemode 1
 
 ## Getestet
 
-Siehe Abschnitt am Ende dieser Datei (wird nach jedem Test aktualisiert).
+- **Originaler Minecraft-1.12.2-Client mit Server:**
+  - Minigun (Treffer), Orbital-Kanone (auch auf weite Entfernung), Schatten-Bogen (zielsuchend), Vernichtungs-Bogen;
+  - alle 10 Werf-TNTs einzeln; Nachfüllen nach dem Wurf;
+  - Backrooms: alle Übergänge von Level 0 bis zum Finale, alle Rätsel (Hebel), Abenteuermodus drinnen und Überleben draußen, Warden mit 3 Leben, Sieg und Rückweg; nachkommende Monster.
+- **Eaglercraft 1.12.2 (u3), HTML-Datei aus Variante 1, neues Browser-Profil:** Items und Rüstung beim Betreten, Minigun schießt, `/start` führt nach Level 0, Smiler erscheinen.
+- **Nicht in Eaglercraft geprüft:** die übrigen Waffen und Werf-TNTs, Level 1–4 und das Finale. Sie nutzen dieselben Befehle wie die getesteten Teile.
+- **Bekannt:** Die Zombies im Test an der Oberfläche brennen bei Tag (normales Minecraft-Verhalten); in den Backrooms passiert das nicht.
 
 ## Getroffene Entscheidungen
 

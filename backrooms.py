@@ -32,7 +32,7 @@ ANZAHL_LEVEL = 5          # Level 0-4, dazu das Finale (Nummer 5)
 FINALE = 5
 WARDEN_LEBEN = 3          # so oft muss der Warden besiegt werden
 AUFSTIEG = 100            # Ticks, bis der Warden aus dem Boden gestiegen ist
-NACHSCHUB_TAKT = 200      # alle 10 Sekunden kann ein neues Monster kommen
+NACHSCHUB_TAKT = 120      # alle 6 Sekunden kann ein neues Monster kommen
 
 
 def j(obj):
@@ -397,7 +397,7 @@ def level2():
     seite = ras.geschlossene_seite(*ausgang)
     if seite:
         bef.append(schild(seite[0], B + 3, seite[1], seite[2],
-                          ["", {"text": "WARTUNGSSCHACHT", "color": "gold", "bold": True}, {"text": "→ Level 3"}, ""]))
+                          ["", {"text": "WARTUNGSSCHACHT", "color": "gold"}, {"text": "→ Level 3"}, ""]))
     bef.append("setblock %d %d %d redstone_torch 5" % (ex[2], B + 1, ex[3]))
     fern = [k for k in d if d[k] >= 6]
     r.shuffle(fern)
@@ -499,7 +499,7 @@ def level3():
     auf = ["setblock %d %d %d iron_door 5" % (tx, B + 1, tz),
            "playsound block.iron_door.open master @a %d %d %d 2 0.8" % (tx, B + 1, tz)]
     bef += [zu[1], zu[0]]
-    cx, cz = (ix0 + ix1) // 2, (iz0 + iz1) // 2 + 1
+    cx, cz = tx, (iz0 + iz1) // 2 + 1        # Portal genau hinter der Tuer
     bef.append("setblock %d %d %d end_rod 0" % (cx, B + 3, cz))
     # Wandleuchten in den Fluren
     for fz in flure:
@@ -578,7 +578,7 @@ def level4():
     seite = ras.geschlossene_seite(*ausgang)
     if seite:
         bef.append(schild(seite[0], B + 3, seite[1], seite[2],
-                          ["", {"text": "WARTUNGSAUFZUG", "color": "dark_aqua", "bold": True},
+                          ["", {"text": "AUFZUG", "color": "dark_aqua", "bold": True},
                            {"text": "→ ???"}, {"text": "4 Sicherungen nötig", "color": "gray"}]))
     zu = [fill(cx, B + 1, cz, cx, B + 2, cz, "iron_block")]
     auf = [fill(cx, B + 2, cz, cx, B + 2, cz, "air"), gateway(cx, B + 1, cz, start_von(FINALE))]
@@ -744,8 +744,9 @@ def ketten(geo):
             eintritt.append(vor + "setblock %d %d %d lever %d" % (x, y, z, meta))
         for c in info.get("zu", []):
             eintritt.append(vor + c)
-        for x, y, z, nbt in info["monster"]:
-            eintritt.append(vor + zombie(x, y, z, nbt))
+        # Monster erst nach 3 Sekunden: nach dem Portal laedt das Spiel die Umgebung nach und nach
+        eintritt.append(vor + "scoreboard players set %s br_ew 60" % STATE)
+        eintritt.append(vor + "scoreboard players set %s br_ewl %d" % (STATE, lv))
         if lv == FINALE:
             eintritt.append(vor + "setblock %d %d %d air" % (ax, B + 1, az))
             eintritt.append(vor + "summon wither_skeleton %d %.1f %d {Tags:[br_mob,w_auf,wp_sys],NoAI:1b,NoGravity:1b,"
@@ -755,6 +756,11 @@ def ketten(geo):
                             "{id:\"minecraft:diamond_hoe\",Count:1b,Damage:%ds,tag:{Unbreakable:1b}}]}"
                             % (ax, B + 1 - 3.0, az, modelle.MONSTER_DAMAGE["warden"][0]))
         eintritt.append("execute %s ~ ~ ~ scoreboard players set %s br_f%d 1" % (sel, STATE, lv))
+    eintritt.append("scoreboard players remove @e[tag=br_state,score_br_ew_min=1] br_ew 1")
+    for lv in range(ANZAHL_LEVEL + 1):
+        for x, y, z, nbt in level(lv)["monster"]:
+            eintritt.append("execute @e[tag=br_state,score_br_ew_min=1,score_br_ew=1,score_br_ewl_min=%d,score_br_ewl=%d] ~ ~ ~ %s"
+                            % (lv, lv, zombie(x, y, z, nbt)))
     # In welchem Level ist gerade jemand?
     eintritt.append("scoreboard players set %s br_lv -1" % STATE)
     for lv in range(ANZAHL_LEVEL + 1):
@@ -937,7 +943,7 @@ def ketten(geo):
 
 
 FLAGS = ["br_f%d" % lv for lv in range(ANZAHL_LEVEL + 1)] + [
-    "br_wsp", "br_sieg", "br_wtot", "br_wl", "br_auf1", "br_auf3", "br_auf4", "br_t3", "br_t4"]
+    "br_wsp", "br_sieg", "br_wtot", "br_wl", "br_auf1", "br_auf3", "br_auf4", "br_t3", "br_t4", "br_ew", "br_ewl"]
 
 
 def objectives():
